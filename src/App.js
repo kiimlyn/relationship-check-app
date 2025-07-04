@@ -566,66 +566,211 @@ ${JSON.stringify(getStreaks(), null, 2)}
 
       <main className="main-content">
         {activeTab === 'journal' && (
-          <div className="journal-tab">
-            {/* Entry Form */}
-            <div className="entry-form">
-              <h2>How was your relationship today?</h2>
-              <div className="form-group">
-                <textarea
-                  value={currentEntry}
-                  onChange={(e) => setCurrentEntry(e.target.value)}
-                  placeholder="Share what happened today... Your partner's actions, how you felt, any conversations you had..."
-                  className="entry-textarea"
-                  disabled={isAnalyzing}
-                />
-                <button
-                  onClick={handleSubmit}
-                  disabled={isAnalyzing || !currentEntry.trim()}
-                  className="submit-btn"
-                >
-                  {isAnalyzing ? 'Analyzing...' : 'Analyze & Save Entry'}
-                </button>
+  <div className="journal-tab">
+    {/* Entry Form */}
+    <div className="entry-form">
+      <h2>How was your relationship today?</h2>
+      <div className="form-group">
+        <textarea
+          value={currentEntry}
+          onChange={(e) => setCurrentEntry(e.target.value)}
+          placeholder="Share what happened today... Your partner's actions, how you felt, any conversations you had..."
+          className="entry-textarea"
+          disabled={isAnalyzing}
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={isAnalyzing || !currentEntry.trim()}
+          className="submit-btn"
+        >
+          {isAnalyzing ? 'Analyzing...' : 'Analyze & Save Entry'}
+        </button>
+      </div>
+    </div>
+
+    {/* Entries List */}
+    <div className="entries-list">
+      {entries.length === 0 ? (
+        <div className="empty-state">
+          <Heart className="empty-icon" />
+          <p>Start your first journal entry to get AI-powered insights</p>
+        </div>
+      ) : (
+        entries.map((entry) => (
+          <div key={entry.id} className="entry-card">
+            <div className="entry-header">
+              <span className="entry-date">{entry.date} at {entry.time}</span>
+              <span className={`entry-badge ${entry.analysis.color}`}>
+                {entry.analysis.icon} {entry.analysis.title}
+              </span>
+            </div>
+            
+            <div className="entry-text">
+              <p>{entry.text}</p>
+            </div>
+            
+            <div className="entry-analysis">
+              <h4>AI Analysis:</h4>
+              <p className="analysis-message">{entry.analysis.message}</p>
+              
+              <div className="suggestions">
+                <p className="suggestions-title">Suggestions:</p>
+                {entry.analysis.suggestions.map((suggestion, index) => (
+                  <p key={index} className="suggestion-item">• {suggestion}</p>
+                ))}
               </div>
             </div>
-
-            {/* Entries List */}
-            <div className="entries-list">
-              {entries.length === 0 ? (
-                <div className="empty-state">
-                  <Heart className="empty-icon" />
-                  <p>Start your first journal entry to get AI-powered insights</p>
-                </div>
-              ) : (
-                entries.map((entry) => (
-                  <div key={entry.id} className="entry-card">
-                    <div className="entry-header">
-                      <span className="entry-date">{entry.date} at {entry.time}</span>
-                      <span className={`entry-badge ${entry.analysis.color}`}>
-                        {entry.analysis.icon} {entry.analysis.title}
-                      </span>
-                    </div>
-                    
-                    <div className="entry-text">
-                      <p>{entry.text}</p>
-                    </div>
-                    
-                    <div className="entry-analysis">
-                      <h4>AI Analysis:</h4>
-                      <p className="analysis-message">{entry.analysis.message}</p>
-                      
-                      <div className="suggestions">
-                        <p className="suggestions-title">Suggestions:</p>
-                        {entry.analysis.suggestions.map((suggestion, index) => (
-                          <p key={index} className="suggestion-item">• {suggestion}</p>
-                        ))}
-                      </div>
-                    </div>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+)}
+       {activeTab === 'goals' && (
+  <div style={{padding: '20px'}}>
+    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px'}}>
+      <h2 style={{fontSize: '2rem', fontWeight: '600', color: 'var(--text-primary)', background: 'linear-gradient(135deg, var(--theme-primary), var(--theme-accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>
+        🎯 Your Weekly Focus Areas
+      </h2>
+    </div>
+    
+    <div style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+      {/* AI Recommendations Based on Journal Data */}
+      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
+        <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
+          🤖 AI Recommendations
+        </h3>
+        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+          {(() => {
+            const stats = getStats();
+            const recommendations = [];
+            
+            if (stats.total === 0) {
+              recommendations.push({
+                icon: '📝',
+                title: 'Start Your Journey',
+                message: 'Begin by journaling about your daily relationship interactions to get personalized insights.'
+              });
+            } else {
+              if (stats.red > stats.green) {
+                recommendations.push({
+                  icon: '🔧',
+                  title: 'Focus on Communication',
+                  message: 'Your recent entries show some challenges. Consider practicing "I feel" statements and setting clear boundaries.'
+                });
+                recommendations.push({
+                  icon: '💬',
+                  title: 'Have a Heart-to-Heart',
+                  message: 'Schedule a calm conversation about what\'s been bothering you both. Choose a good time when you\'re both relaxed.'
+                });
+              } else if (stats.green > stats.red) {
+                recommendations.push({
+                  icon: '✨',
+                  title: 'Keep Building on Success',
+                  message: 'Your relationship is showing positive patterns! Continue doing what\'s working and express gratitude for these moments.'
+                });
+                recommendations.push({
+                  icon: '🌱',
+                  title: 'Deepen Your Connection',
+                  message: 'Try asking deeper questions like "What made you feel most loved this week?" or "What are you looking forward to?"'
+                });
+              } else {
+                recommendations.push({
+                  icon: '⚖️',
+                  title: 'Balance and Consistency',
+                  message: 'You\'re experiencing both positive and challenging moments. Focus on creating more predictable positive interactions.'
+                });
+              }
+              
+              if (stats.total >= 5) {
+                const timePatterns = getTimePatterns();
+                if (timePatterns && timePatterns.insights.length > 0) {
+                  recommendations.push({
+                    icon: '⏰',
+                    title: 'Timing Matters',
+                    message: timePatterns.insights[0]
+                  });
+                }
+              }
+            }
+            
+            return recommendations.map((rec, index) => (
+              <div key={index} style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
+                <div style={{display: 'flex', alignItems: 'flex-start', gap: '12px'}}>
+                  <span style={{fontSize: '1.5rem'}}>{rec.icon}</span>
+                  <div>
+                    <h4 style={{color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px'}}>{rec.title}</h4>
+                    <p style={{color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0}}>{rec.message}</p>
                   </div>
-                ))
-              )}
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
+      </div>
+
+      {/* Weekly Relationship Tips */}
+      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
+        <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
+          💡 This Week's Relationship Tips
+        </h3>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px'}}>
+          {[
+            {
+              icon: '🗣️',
+              tip: 'Practice the 24-hour rule',
+              description: 'Wait 24 hours before discussing something that upset you. This helps you respond thoughtfully instead of reacting.'
+            },
+            {
+              icon: '💝',
+              tip: 'Express specific gratitude',
+              description: 'Instead of "thanks," try "I really appreciated when you listened to me talk about my day without trying to fix anything."'
+            },
+            {
+              icon: '📱',
+              tip: 'Create phone-free moments',
+              description: 'Set aside 20 minutes daily for device-free conversation. Even small moments of undivided attention matter.'
+            },
+            {
+              icon: '🎯',
+              tip: 'Use "I" statements',
+              description: 'Replace "You always..." with "I feel..." to reduce defensiveness and improve communication.'
+            }
+          ].map((item, index) => (
+            <div key={index} style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
+              <div style={{fontSize: '1.5rem', marginBottom: '8px'}}>{item.icon}</div>
+              <h4 style={{color: 'var(--text-primary)', fontWeight: '600', marginBottom: '8px', fontSize: '0.95rem'}}>{item.tip}</h4>
+              <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.4, margin: 0}}>{item.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Journal Insights */}
+      {getStats().total > 0 && (
+        <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
+          <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
+            📊 Your Relationship Patterns
+          </h3>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px'}}>
+            <div style={{padding: '16px', background: 'var(--green-bg)', borderRadius: '12px', border: '1px solid var(--green-border)', textAlign: 'center'}}>
+              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--green-value)', marginBottom: '4px'}}>{getStats().green}</div>
+              <div style={{color: 'var(--green-text)', fontWeight: '500'}}>Positive Moments</div>
+            </div>
+            <div style={{padding: '16px', background: 'var(--red-bg)', borderRadius: '12px', border: '1px solid var(--red-border)', textAlign: 'center'}}>
+              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--red-value)', marginBottom: '4px'}}>{getStats().red}</div>
+              <div style={{color: 'var(--red-text)', fontWeight: '500'}}>Areas to Address</div>
+            </div>
+            <div style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', textAlign: 'center'}}>
+              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '4px'}}>{getStats().total}</div>
+              <div style={{color: 'var(--text-secondary)', fontWeight: '500'}}>Total Entries</div>
             </div>
           </div>
-        )}
+        </div>
+      )}
+    </div>
+  </div>
+)}
 {activeTab === 'calendar' && (
   <div style={{padding: '20px'}}>
     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px'}}>
@@ -789,55 +934,18 @@ ${JSON.stringify(getStreaks(), null, 2)}
       <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
         <h3 style={{color: 'var(--text-primary)', marginBottom: '20px', fontSize: '1.25rem', fontWeight: '600'}}>Weekly Goals</h3>
         <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-          {[
-            {id: 1, text: 'Practice active listening', completed: false},
-            {id: 2, text: 'Express gratitude daily', completed: false}, 
-            {id: 3, text: 'Have one meaningful conversation', completed: false}
-          ].map((goal, index) => (
-            <div key={goal.id} style={{display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px'}}>
-              <input 
-                type="checkbox" 
-                style={{width: '18px', height: '18px', cursor: 'pointer'}}
-                onChange={() => {}}
-              />
-              <span style={{flex: 1, color: 'var(--text-primary)', fontWeight: '500'}}>{goal.text}</span>
-            </div>
-          ))}
+          {goals.map((goal, index) => (
+  <div key={goal.id} style={{display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px'}}>
+    <input 
+      type="checkbox" 
+      style={{width: '18px', height: '18px', cursor: 'pointer'}}
+      checked={goal.completed}
+      onChange={() => toggleGoal(goal.id)}
+    />
+    <span style={{flex: 1, color: 'var(--text-primary)', fontWeight: '500'}}>{goal.text}</span>
+  </div>
+))}
         </div>
-      </div>
-
-      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
-        <h4 style={{color: 'var(--text-primary)', marginBottom: '16px', fontWeight: '600'}}>Add New Goal</h4>
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px'}}>
-          {[
-            'Practice daily appreciation',
-            'Have one deep conversation', 
-            'Resolve conflicts calmly',
-            'Plan a fun activity together',
-            'Set healthy boundaries',
-            'Show physical affection'
-          ].map((suggestion, index) => (
-            <button 
-              key={index}
-              onClick={() => alert(`Added goal: ${suggestion}`)}
-              style={{padding: '12px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-primary)', textAlign: 'left', transition: 'all 0.3s ease'}}
-              onMouseOver={(e) => {e.target.style.background = 'var(--theme-primary-light)'; e.target.style.borderColor = 'var(--theme-primary)';}}
-              onMouseOut={(e) => {e.target.style.background = 'var(--bg-secondary)'; e.target.style.borderColor = 'var(--border-color)';}}
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
-        <h4 style={{color: 'var(--text-primary)', marginBottom: '16px', fontWeight: '600'}}>Progress This Week</h4>
-        <div style={{width: '100%', height: '8px', background: 'var(--bg-secondary)', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px'}}>
-          <div style={{height: '100%', background: 'linear-gradient(90deg, var(--theme-primary), var(--theme-accent))', borderRadius: '4px', width: '33%', transition: 'width 0.3s ease'}}></div>
-        </div>
-        <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem', textAlign: 'center'}}>
-          1 of 3 goals completed this week
-        </p>
       </div>
     </div>
   </div>
@@ -870,12 +978,9 @@ ${JSON.stringify(getStreaks(), null, 2)}
       <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)', position: 'relative', overflow: 'hidden'}}>
         <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: entries.filter(e => e.analysis.flag === 'green').length > entries.filter(e => e.analysis.flag === 'red').length ? 'linear-gradient(90deg, #10b981, #047857)' : 'linear-gradient(90deg, #ef4444, #dc2626)'}}></div>
         <h3 style={{color: 'var(--text-primary)', marginBottom: '12px', fontSize: '1.25rem', fontWeight: '600'}}>This Week's Summary</h3>
-        <p style={{color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '1.1rem'}}>
-          You've made {entries.length} total entries. {entries.filter(e => e.analysis.flag === 'green').length > entries.filter(e => e.analysis.flag === 'red').length ? 
-            `Great job! You had ${entries.filter(e => e.analysis.flag === 'green').length} positive interactions and ${entries.filter(e => e.analysis.flag === 'red').length} concerning ones.` : 
-            `This week had some challenges with ${entries.filter(e => e.analysis.flag === 'red').length} red flags and ${entries.filter(e => e.analysis.flag === 'green').length} green flags. Keep working on building positive moments together.`
-          }
-        </p>
+        <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem', textAlign: 'center'}}>
+  {goals.filter(g => g.completed).length} of {goals.length} goals completed this week
+</p>
       </div>
       
       <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
@@ -1028,7 +1133,151 @@ ${JSON.stringify(getStreaks(), null, 2)}
                 )}
               </div>
             )}
+{activeTab === 'goals' && (
+  <div style={{padding: '20px'}}>
+    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px'}}>
+      <h2 style={{fontSize: '2rem', fontWeight: '600', color: 'var(--text-primary)', background: 'linear-gradient(135deg, var(--theme-primary), var(--theme-accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>
+        🎯 Your Weekly Focus Areas
+      </h2>
+    </div>
+    
+    <div style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+      {/* AI Recommendations Based on Journal Data */}
+      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
+        <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
+          🤖 AI Recommendations
+        </h3>
+        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+          {(() => {
+            const stats = getStats();
+            const recommendations = [];
+            
+            if (stats.total === 0) {
+              recommendations.push({
+                icon: '📝',
+                title: 'Start Your Journey',
+                message: 'Begin by journaling about your daily relationship interactions to get personalized insights.'
+              });
+            } else {
+              if (stats.red > stats.green) {
+                recommendations.push({
+                  icon: '🔧',
+                  title: 'Focus on Communication',
+                  message: 'Your recent entries show some challenges. Consider practicing "I feel" statements and setting clear boundaries.'
+                });
+                recommendations.push({
+                  icon: '💬',
+                  title: 'Have a Heart-to-Heart',
+                  message: 'Schedule a calm conversation about what\'s been bothering you both. Choose a good time when you\'re both relaxed.'
+                });
+              } else if (stats.green > stats.red) {
+                recommendations.push({
+                  icon: '✨',
+                  title: 'Keep Building on Success',
+                  message: 'Your relationship is showing positive patterns! Continue doing what\'s working and express gratitude for these moments.'
+                });
+                recommendations.push({
+                  icon: '🌱',
+                  title: 'Deepen Your Connection',
+                  message: 'Try asking deeper questions like "What made you feel most loved this week?" or "What are you looking forward to?"'
+                });
+              } else {
+                recommendations.push({
+                  icon: '⚖️',
+                  title: 'Balance and Consistency',
+                  message: 'You\'re experiencing both positive and challenging moments. Focus on creating more predictable positive interactions.'
+                });
+              }
+              
+              if (stats.total >= 5) {
+                const timePatterns = getTimePatterns();
+                if (timePatterns && timePatterns.insights.length > 0) {
+                  recommendations.push({
+                    icon: '⏰',
+                    title: 'Timing Matters',
+                    message: timePatterns.insights[0]
+                  });
+                }
+              }
+            }
+            
+            return recommendations.map((rec, index) => (
+              <div key={index} style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
+                <div style={{display: 'flex', alignItems: 'flex-start', gap: '12px'}}>
+                  <span style={{fontSize: '1.5rem'}}>{rec.icon}</span>
+                  <div>
+                    <h4 style={{color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px'}}>{rec.title}</h4>
+                    <p style={{color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0}}>{rec.message}</p>
+                  </div>
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
+      </div>
 
+      {/* Weekly Relationship Tips */}
+      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
+        <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
+          💡 This Week's Relationship Tips
+        </h3>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px'}}>
+          {[
+            {
+              icon: '🗣️',
+              tip: 'Practice the 24-hour rule',
+              description: 'Wait 24 hours before discussing something that upset you. This helps you respond thoughtfully instead of reacting.'
+            },
+            {
+              icon: '💝',
+              tip: 'Express specific gratitude',
+              description: 'Instead of "thanks," try "I really appreciated when you listened to me talk about my day without trying to fix anything."'
+            },
+            {
+              icon: '📱',
+              tip: 'Create phone-free moments',
+              description: 'Set aside 20 minutes daily for device-free conversation. Even small moments of undivided attention matter.'
+            },
+            {
+              icon: '🎯',
+              tip: 'Use "I" statements',
+              description: 'Replace "You always..." with "I feel..." to reduce defensiveness and improve communication.'
+            }
+          ].map((item, index) => (
+            <div key={index} style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
+              <div style={{fontSize: '1.5rem', marginBottom: '8px'}}>{item.icon}</div>
+              <h4 style={{color: 'var(--text-primary)', fontWeight: '600', marginBottom: '8px', fontSize: '0.95rem'}}>{item.tip}</h4>
+              <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.4, margin: 0}}>{item.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Journal Insights */}
+      {getStats().total > 0 && (
+        <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
+          <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
+            📊 Your Relationship Patterns
+          </h3>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px'}}>
+            <div style={{padding: '16px', background: 'var(--green-bg)', borderRadius: '12px', border: '1px solid var(--green-border)', textAlign: 'center'}}>
+              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--green-value)', marginBottom: '4px'}}>{getStats().green}</div>
+              <div style={{color: 'var(--green-text)', fontWeight: '500'}}>Positive Moments</div>
+            </div>
+            <div style={{padding: '16px', background: 'var(--red-bg)', borderRadius: '12px', border: '1px solid var(--red-border)', textAlign: 'center'}}>
+              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--red-value)', marginBottom: '4px'}}>{getStats().red}</div>
+              <div style={{color: 'var(--red-text)', fontWeight: '500'}}>Areas to Address</div>
+            </div>
+            <div style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', textAlign: 'center'}}>
+              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '4px'}}>{getStats().total}</div>
+              <div style={{color: 'var(--text-secondary)', fontWeight: '500'}}>Total Entries</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
             {stats.total > 0 && (
               <div className="pattern-analysis">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">Pattern Analysis</h3>
