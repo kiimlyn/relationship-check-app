@@ -4,7 +4,10 @@ import { analyzeRelationshipEntry } from './services/gemini';
 import './App.css';
 
 function App() {
-  const [entries, setEntries] = useState([]);
+const [entries, setEntries] = useState(() => {
+  const savedEntries = localStorage.getItem('journalEntries');
+  return savedEntries ? JSON.parse(savedEntries) : [];
+});
   const [currentEntry, setCurrentEntry] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState('journal');
@@ -119,7 +122,9 @@ function App() {
         timestamp: new Date()
       };
       
-      setEntries([newEntry, ...entries]);
+const updatedEntries = [newEntry, ...entries];
+setEntries(updatedEntries);
+localStorage.setItem('journalEntries', JSON.stringify(updatedEntries));
       setCurrentEntry('');
     } catch (error) {
       console.error('Analysis failed:', error);
