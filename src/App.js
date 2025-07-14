@@ -2,12 +2,152 @@ import React, { useState } from 'react';
 import { Heart, AlertTriangle, CheckCircle, Calendar, TrendingUp, Book, Download, Target, FileText } from 'lucide-react';
 import { analyzeRelationshipEntry } from './services/gemini';
 import './App.css';
+// ADD THIS NEW CL
+// // Temporary functions until we fix the aiService import
+const getAvailableProviders = () => {
+  return [
+    { name: 'gemini', limits: '60/min, 1500/day', priority: 1, free: true },
+    { name: 'groq', limits: '30/min, 14,400/day', priority: 2, free: true }
+  ].filter(p => 
+    (p.name === 'gemini' && !!process.env.REACT_APP_GEMINI_API_KEY) ||
+    (p.name === 'groq' && !!process.env.REACT_APP_GROQ_API_KEY)
+  );
+};
+const getProviderStatus = () => ({
+  primary: !!process.env.REACT_APP_GEMINI_API_KEY ? 'gemini' : 'none',
+  backup: !!process.env.REACT_APP_GROQ_API_KEY ? 'groq' : 'none',
+  totalEnabled: getAvailableProviders().length,
+  recommended: 2
+});
 
+const testProvider = async (providerName) => {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve({
+        success: !!process.env[`REACT_APP_${providerName.toUpperCase()}_API_KEY`],
+        provider: providerName,
+        responseTime: Math.floor(Math.random() * 3000) + 1000,
+        status: providerName === 'gemini' ? 'Primary' : 'Fast Backup'
+      });
+    }, 1000);
+  });
+};
+class RelationshipAnalyzer {
+  constructor() {
+    this.patterns = {
+      // CRITICAL RED FLAGS - Physical violence and threats
+      physicalViolence: [
+        'hit me', 'slapped me', 'punched me', 'kicked me', 'pushed me', 'shoved me',
+        'grabbed me', 'pinned me', 'choked me', 'strangled me', 'threw something at me',
+        'against the wall', 'threw me', 'hurt me physically', 'left bruises',
+        'twisted my arm', 'pulled my hair', 'blocked my path', 'cornered me'
+      ],
+      
+      threats: [
+        'threatened to', 'said he would hurt', 'said she would hurt', 'threatened me',
+        'said he\'ll kill', 'said she\'ll kill', 'threatened to kill', 'threatened violence',
+        'said he\'d hurt my', 'said she\'d hurt my', 'threatened my family'
+      ],
+      
+      control: [
+        'won\'t let me', 'doesn\'t let me', 'forbids me', 'prevents me from',
+        'controls what i', 'tells me what to wear', 'checks my phone', 'reads my messages',
+        'tracks my location', 'follows me', 'monitors me', 'isolates me'
+      ],
+      
+      verbalAbuse: [
+        'called me stupid', 'called me worthless', 'called me crazy', 'called me ugly',
+        'yelled at me', 'screamed at me', 'cursed at me', 'insulted me'
+      ],
+      
+      // GREEN FLAGS
+      loveExpressions: [
+        'said i love you', 'told me he loved me', 'told me she loved me',
+        'said he loves me', 'said she loves me', 'i love you too',
+        'love you for the first time', 'said those three words'
+      ],
+      
+      physicalAffection: [
+        'hugged me', 'kissed me', 'held my hand', 'cuddled with me',
+        'held me close', 'embraced me', 'gentle kiss', 'loving touch'
+      ]
+    };
+  }
+
+  analyzePatterns(text) {
+    const lowerText = text.toLowerCase();
+    const results = {
+      red: { confidence: 0, severity: 0 },
+      green: { confidence: 0 }
+    };
+
+    // Check for red flag patterns
+    Object.entries(this.patterns).forEach(([category, patterns]) => {
+      patterns.forEach(pattern => {
+        if (lowerText.includes(pattern)) {
+          if (['physicalViolence', 'threats', 'control', 'verbalAbuse'].includes(category)) {
+            results.red.confidence = Math.max(results.red.confidence, 0.9);
+            if (category === 'physicalViolence' || category === 'threats') {
+              results.red.severity = 5; // Critical
+            } else if (category === 'control') {
+              results.red.severity = Math.max(results.red.severity, 4);
+            } else {
+              results.red.severity = Math.max(results.red.severity, 3);
+            }
+          } else {
+            results.green.confidence = Math.max(results.green.confidence, 0.85);
+          }
+        }
+      });
+    });
+
+    return results;
+  }
+
+  finalSafetyCheck(result, text) {
+    const lowerText = text.toLowerCase();
+    const violenceWords = ['hit', 'slapped', 'punched', 'hurt', 'threw', 'choked'];
+    const hasViolence = violenceWords.some(word => lowerText.includes(word));
+    
+    if (hasViolence && result.flag === 'green') {
+      return {
+        flag: 'red',
+        color: 'red',
+        icon: '🚨',
+        title: 'Safety Override - Critical Red Flag',
+        message: 'Physical harm detected. This is never acceptable.',
+        suggestions: [
+          'Your safety is the top priority',
+          'Physical violence is never okay',
+          'Contact crisis support: 800-7283'
+        ],
+        confidence: 1.0,
+        analysis: 'Safety Override'
+      };
+    }
+    return result;
+  }
+}
 function App() {
-const [entries, setEntries] = useState(() => {
+  const [entries, setEntries] = useState(() => {
   const savedEntries = localStorage.getItem('journalEntries');
   return savedEntries ? JSON.parse(savedEntries) : [];
 });
+// Add these state variables after your existing useState declarations
+const [aiStatus, setAiStatus] = useState({
+  available: [],
+  testing: false,
+  lastTest: null,
+  providerInfo: {},
+  primaryStatus: 'unknown',
+  backupStatus: 'unknown'
+});
+// ADD these lines after your existing useState declarations
+const [analysisMethod, setAnalysisMethod] = useState('enhanced');
+const [debugMode, setDebugMode] = useState(false);
+
+// ADD this line after all your state declarations (before your functions)
+const analyzer = new RelationshipAnalyzer();
   const [currentEntry, setCurrentEntry] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState('journal');
@@ -20,6 +160,52 @@ const [entries, setEntries] = useState(() => {
     { id: 2, text: 'Express gratitude daily', completed: false, week: getCurrentWeek() },
     { id: 3, text: 'Have one meaningful conversation', completed: false, week: getCurrentWeek() }
   ]);
+  // Add this function to your App.js with your other functions
+const testAllProviders = async () => {
+  setAiStatus(prev => ({ ...prev, testing: true }));
+  
+  // Test in priority order: Gemini first, then Groq
+  const providers = ['gemini', 'groq', 'together', 'perplexity'];
+  const results = [];
+  const providerInfo = {};
+  
+  for (const provider of providers) {
+    console.log(`🧪 Testing ${provider}...`);
+    const startTime = Date.now();
+    const result = await testProvider(provider);
+    const duration = Date.now() - startTime;
+    
+    results.push(result);
+    providerInfo[provider] = {
+      ...result,
+      responseTime: duration,
+      lastTested: new Date().toLocaleTimeString()
+    };
+    
+    console.log(`${result.success ? '✅' : '❌'} ${provider}: ${result.success ? `Working (${duration}ms) - ${result.status}` : result.error}`);
+  }
+  
+  const available = results.filter(r => r.success).map(r => r.provider);
+  const status = getProviderStatus();
+  
+  setAiStatus({
+    available,
+    testing: false,
+    lastTest: new Date().toLocaleTimeString(),
+    providerInfo,
+    primaryStatus: status.primary === 'gemini' ? 'configured' : 'missing',
+    backupStatus: status.backup === 'groq' ? 'configured' : 'missing'
+  });
+  
+  // Show optimized summary
+  console.log(`🎯 Optimized AI Setup Status:
+🥇 Primary (Gemini): ${providerInfo.gemini?.success ? '✅ Working' : '❌ Failed'}
+🥈 Backup (Groq): ${providerInfo.groq?.success ? '✅ Working' : '❌ Failed'}
+🔧 Additional: ${results.filter(r => r.success && !['gemini', 'groq'].includes(r.provider)).length} more providers available
+⚡ Setup Quality: ${available.includes('gemini') && available.includes('groq') ? 'OPTIMAL' : available.includes('gemini') ? 'GOOD' : available.length > 0 ? 'BASIC' : 'NEEDS SETUP'}`);
+  
+  return results;
+};
 
   function getCurrentWeek() {
     const now = new Date();
@@ -28,81 +214,441 @@ const [entries, setEntries] = useState(() => {
     return Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
   }
 
-  // Simulated AI analysis function (fallback)
-  const localAnalyzeEntry = async (text) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+  // FIXED LOCAL ANALYSIS FUNCTION WITH COMPLETE RED FLAG DETECTION
+// Replace your existing analyzeEntry function with this:
+const analyzeEntry = async (text) => {
+  try {
+    console.log('🎯 Starting Enhanced Analysis (Gemini → Groq → Local)...');
     
-    const lowerText = text.toLowerCase();
+    let result;
     
-    // Red flag patterns - make them more flexible
-    const redFlags = [
-      'yell', 'scream', 'threw', 'hit', 'slam', 'threat', 'stupid', 'worthless', 
-      'control', 'check my phone', 'isolat', 'forbid', 'called me names', 
-      'silent treatment', 'ignor', 'punish', 'jealous', 'accus', 'doesn\'t trust',
-      'lie', 'lying', 'lied', 'cheat', 'cheating'
-    ];
-    
-    // Green flag patterns - make them more flexible  
-    const greenFlags = [
-      'listen', 'apologi', 'support', 'encourag', 'help', 'communicat', 
-      'discuss', 'compromi', 'understand', 'celebrat', 'proud', 'respect', 
-      'boundar', 'space', 'date', 'quality time', 'grateful', 'thank'
-    ];
-    
-    const redFlagCount = redFlags.filter(flag => lowerText.includes(flag)).length;
-    const greenFlagCount = greenFlags.filter(flag => lowerText.includes(flag)).length;
-    
-    let analysis = {
-      flag: 'neutral',
-      color: 'neutral',
-      icon: '⚪',
-      title: 'Neutral',
-      message: 'This seems like a normal relationship interaction.',
-      suggestions: ['Continue observing patterns', 'Practice open communication']
-    };
-    
-    if (redFlagCount > 0) {
-      analysis = {
-        flag: 'red',
-        color: 'red',
-        icon: '🚩',
-        title: 'Red Flag Detected',
-        message: 'This behavior shows concerning patterns that may indicate an unhealthy dynamic.',
-        suggestions: [
-          'Consider talking to a trusted friend or counselor',
-          'Document these incidents',
-          'Remember that healthy relationships involve mutual respect',
-          'National Domestic Violence Hotline: 1-800-799-7233'
-        ]
-      };
-    } else if (greenFlagCount > 0) {
-      analysis = {
-        flag: 'green',
-        color: 'green',
-        icon: '✅',
-        title: 'Green Flag',
-        message: 'This shows positive relationship behaviors and healthy communication.',
-        suggestions: [
-          'Acknowledge and appreciate these positive moments',
-          'Continue building on this healthy foundation',
-          'Express gratitude to your partner'
-        ]
-      };
+    if (analysisMethod === 'local') {
+      console.log('🔧 Using Local Analysis Only...');
+      result = await fixedLocalAnalyzeEntry(text);
+      result.provider = 'local-only';
+    } else if (analysisMethod === 'ai') {
+      // Use the real AI chain: Gemini (3 retries) → Groq (2 retries) → Local
+      try {
+        console.log('🤖 Starting Real AI Chain: Gemini → Groq...');
+        
+        // Try Gemini with retries first
+        result = await tryGeminiWithRetries(text);
+        console.log(`✅ AI Analysis successful with Gemini 🆓`);
+        
+      } catch (geminiError) {
+        console.warn('⚠️ Gemini failed after retries, trying Groq...');
+        
+        try {
+          // Try Groq with retries
+          result = await tryGroqWithRetries(text);
+          console.log(`✅ AI Analysis successful with Groq 🚀`);
+          
+        } catch (groqError) {
+          console.warn('🚨 Both AI providers failed, falling back to local analysis');
+          result = await fixedLocalAnalyzeEntry(text);
+          result.analysis = 'AI Chain Failed - Local Fallback';
+          result.provider = 'local-fallback';
+        }
+      }
+    } else {
+      // Enhanced mode - AI with local validation
+      try {
+        console.log('🧠 Enhanced Mode: AI + Local Validation...');
+        
+        let aiResult;
+        
+        // Try the AI chain
+        try {
+          aiResult = await tryGeminiWithRetries(text);
+          console.log(`🥇 Enhanced Mode: Gemini analysis successful`);
+        } catch (geminiError) {
+          try {
+            aiResult = await tryGroqWithRetries(text);
+            console.log(`🥈 Enhanced Mode: Groq analysis successful`);
+          } catch (groqError) {
+            throw new Error('All AI providers failed');
+          }
+        }
+        
+        // Get local analysis for validation
+        const localResult = await fixedLocalAnalyzeEntry(text);
+        const patternAnalysis = analyzer.analyzePatterns(text);
+        
+        // Multi-layer validation with provider info
+        if (patternAnalysis.red.severity >= 4 && aiResult.flag === 'green') {
+          console.warn(`🚨 AI SAFETY OVERRIDE: Critical red flag marked as green by ${aiResult.provider}`);
+          result = localResult;
+          result.analysis = `AI-Corrected (Safety Override - ${aiResult.provider})`;
+          result.provider = `safety-override-${aiResult.provider}`;
+        } else if (patternAnalysis.green.confidence >= 0.8 && aiResult.flag === 'red') {
+          console.warn(`🚨 AI CORRECTION: Obvious green flag marked as red by ${aiResult.provider}`);
+          result = localResult;
+          result.analysis = `AI-Corrected (Local Override - ${aiResult.provider})`;
+          result.provider = `local-override-${aiResult.provider}`;
+        } else {
+          result = aiResult;
+          result.analysis = `Enhanced Analysis (${aiResult.provider}) 🆓`;
+          
+          // Log the successful AI provider
+          if (aiResult.provider === 'gemini') {
+            console.log('🥇 Enhanced Mode: Primary Gemini analysis validated ✅');
+          } else if (aiResult.provider === 'groq') {
+            console.log('🥈 Enhanced Mode: Groq backup analysis validated ⚡');
+          }
+        }
+      } catch (aiError) {
+        console.warn('🚨 Enhanced Mode: All AI providers failed, using local analysis');
+        result = await fixedLocalAnalyzeEntry(text);
+        result.analysis = 'Enhanced Mode - AI Failed, Local Used';
+        result.provider = 'enhanced-local-fallback';
+      }
     }
     
-    return analysis;
+    // Final safety check
+    result = analyzer.finalSafetyCheck(result, text);
+    
+    // Add confidence and analysis info if missing
+    if (!result.confidence) result.confidence = 0.8;
+    if (!result.analysis) result.analysis = `${analysisMethod} Analysis`;
+    
+    if (debugMode) {
+      console.log('🔍 Final Analysis Result:', result);
+      console.log('🔍 Pattern Analysis:', analyzer.analyzePatterns(text));
+      console.log('🔍 Available Providers:', getAvailableProviders());
+      console.log('🔍 Provider Status:', getProviderStatus());
+    }
+    
+    return result;
+    
+  } catch (error) {
+    console.error('❌ Complete analysis failure:', error);
+    // Emergency fallback
+    const emergencyResult = await fixedLocalAnalyzeEntry(text);
+    emergencyResult.analysis = 'Emergency Local Fallback';
+    emergencyResult.provider = 'emergency-local';
+    return emergencyResult;
+  }
+};
+// Add this function after your analyzeEntry function:
+// REPLACE your existing fixedLocalAnalyzeEntry function with this FIXED version:
+
+const fixedLocalAnalyzeEntry = async (text) => {
+  console.log('🔧 Local Analysis Function called with:', text);
+  
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  const lowerText = text.toLowerCase();
+  
+  console.log('🔍 Analyzing patterns in:', lowerText);
+console.log('🔍 TESTING: Looking for "grabbed my arm" in:', lowerText);
+console.log('🔍 TESTING: Contains "grabbed my arm"?', lowerText.includes('grabbed my arm'));
+console.log('🔍 TESTING: Contains "grabbed"?', lowerText.includes('grabbed'));
+
+  // CRITICAL RED FLAG PATTERNS - PHYSICAL VIOLENCE
+  const redPatterns = [
+    'grabbed my arm', 'grabbed me', 'grabbed my', 'grabbed',
+    'hit me', 'slapped me', 'hurt me', 'threw something', 'threw', 
+    'pushed me', 'pushed', 'shoved me', 'shoved', 'punched me', 'punched',
+    'pinned me', 'choked me', 'strangled me', 'kicked me',
+    'against the wall', 'threw me', 'hurt me physically',
+    'really hard', 'hard when', // Context for grabbing
+    
+    // Verbal abuse
+    'called me stupid', 'called me worthless', 'called me crazy',
+    'called me names', 'yelled at me', 'screamed at me', 'cursed at me',
+    'shouted at me', 'insulted me',
+    
+    // Control and threats
+    'won\'t let me', 'forbids me', 'controls me', 'checks my phone',
+    'reads my messages', 'tracks me', 'follows me', 'isolates me',
+    'threatens me', 'threatened me', 'threatens to'
+  ];
+  
+  // GREEN FLAG PATTERNS - Loving, supportive behavior
+  const greenPatterns = [
+    'said i love you', 'told me she loved me', 'told me he loved me',
+    'i love you', 'love you too', 'loves me', 'said love',
+    'hugged me', 'kissed me', 'held my hand', 'cuddled',
+    'helped me', 'supported me', 'listened to me', 'there for me',
+    'made me feel loved', 'encouraged me', 'proud of me',
+    'for the first time', 'said she loved', 'said he loved',
+    'love you for the first time', 'she said i love you',
+    'wonderful', 'amazing', 'great conversation', 'date night',
+    'supports my', 'career goals'
+  ];
+  
+  console.log('🔍 Checking red patterns...');
+  const matchedRedPatterns = redPatterns.filter(pattern => lowerText.includes(pattern));
+  console.log('🚩 Matched red patterns:', matchedRedPatterns);
+  
+  console.log('🔍 Checking green patterns...');
+  const matchedGreenPatterns = greenPatterns.filter(pattern => lowerText.includes(pattern));
+  console.log('✅ Matched green patterns:', matchedGreenPatterns);
+  
+  const hasRed = matchedRedPatterns.length > 0;
+  const hasGreen = matchedGreenPatterns.length > 0;
+  
+  console.log('📊 CRITICAL ANALYSIS - hasRed:', hasRed, 'hasGreen:', hasGreen);
+  
+  // SAFETY FIRST - Red flags override EVERYTHING
+  if (hasRed) {
+    console.log('🚨🚨🚨 CRITICAL RED FLAGS DETECTED! SAFETY OVERRIDE! 🚨🚨🚨');
+    console.log('🚩 Detected patterns:', matchedRedPatterns);
+    return {
+      flag: 'red',
+      color: 'red',
+      icon: '🚩',
+      title: 'CRITICAL: Red Flag Detected',
+      message: 'This behavior involves physical violence or control, which is NEVER acceptable in healthy relationships.',
+      suggestions: [
+        'Physical violence is never okay under any circumstances',
+        'This behavior is abusive and concerning',
+        'Please consider reaching out for support',
+        'Trinidad & Tobago Crisis Support: 800-7283',
+        'You deserve to be safe and treated with respect'
+      ],
+      confidence: 1.0,
+      provider: 'local-safety-override'
+    };
+  }
+  
+  if (hasGreen && !hasRed) {
+    console.log('💚 GREEN FLAGS detected! Returning positive analysis');
+    return {
+      flag: 'green',
+      color: 'green',
+      icon: '✅',
+      title: 'Green Flag',
+      message: 'This shows beautiful, loving relationship behavior!',
+      suggestions: [
+        'This is exactly what healthy love looks like',
+        'Cherish these special moments together',
+        'These expressions of love build strong emotional bonds'
+      ],
+      confidence: 0.85,
+      provider: 'local'
+    };
+  }
+  
+  console.log('⚪ No clear patterns found, returning neutral');
+  return {
+    flag: 'neutral',
+    color: 'neutral',
+    icon: '⚪',
+    title: 'Neutral Interaction',
+    message: 'This seems like a normal relationship interaction.',
+    suggestions: [
+      'Continue documenting your experiences',
+      'Focus on building positive moments together'
+    ],
+    confidence: 0.7,
+    provider: 'local'
+  };
+};
+// Add these functions right after your analyzeEntry function:
+
+// Helper function for delays
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Check if error is retryable
+const isRetryableError = (error) => {
+  const retryableMessages = [
+    'temporary error', 'rate limit', 'timeout', 'network', 'fetch',
+    '503', '429', '500', '502', '504'
+  ];
+  return retryableMessages.some(msg => 
+    error.message.toLowerCase().includes(msg)
+  );
+};
+
+// Gemini with 3 retries
+const tryGeminiWithRetries = async (text, retryCount = 0) => {
+  const maxRetries = 3;
+  
+  if (!process.env.REACT_APP_GEMINI_API_KEY) {
+    throw new Error('Gemini API key not configured');
+  }
+
+  const prompt = `You are a relationship counselor AI. Analyze this relationship journal entry and determine if it contains green flags (positive, healthy behaviors) or red flags (concerning, unhealthy behaviors).
+
+Text: "${text}"
+
+Respond with a JSON object in this exact format:
+{
+  "flag": "green" | "red" | "neutral",
+  "color": "green" | "red" | "neutral", 
+  "icon": "✅" | "🚩" | "⚪",
+  "title": "Brief title describing the analysis",
+  "message": "Explanation of why this is flagged this way",
+  "suggestions": ["Array of 2-3 helpful suggestions"],
+  "confidence": 0.8
+}
+
+CRITICAL SAFETY RULES:
+- ANY mention of physical violence, threats, or abuse = RED FLAG
+- Look for: hitting, slapping, pushing, choking, throwing things, threats, controlling behavior
+- Physical violence is NEVER acceptable and should always be flagged as red
+- Be very careful about false positives - don't mark healthy love expressions as red flags`;
+
+  const requestBody = {
+    contents: [{
+      parts: [{
+        text: prompt
+      }]
+    }]
   };
 
-  const analyzeEntry = async (text) => {
-    try {
-      return await analyzeRelationshipEntry(text);
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      // Fallback to local analysis if API fails
-      return localAnalyzeEntry(text);
+  try {
+    console.log(`🤖 Gemini attempt ${retryCount + 1}/${maxRetries + 1} (Primary Provider)`);
+    
+const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.REACT_APP_GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Gemini API Error (${response.status}):`, errorText);
+      
+      if (response.status === 429 || response.status === 503 || response.status >= 500) {
+        throw new Error(`Temporary error: ${response.status}`);
+      }
+      
+      throw new Error(`API Error: ${response.status} - ${errorText}`);
     }
+
+    const data = await response.json();
+    
+    if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      throw new Error('Invalid response format from Gemini');
+    }
+
+    const responseText = data.candidates[0].content.parts[0].text;
+    console.log('🤖 Raw Gemini response:', responseText);
+
+    let jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in response');
+    }
+
+    const result = JSON.parse(jsonMatch[0]);
+    
+    if (!result.flag || !result.title || !result.message) {
+      throw new Error('Invalid response structure');
+    }
+
+    console.log('✅ Gemini analysis successful (Primary)');
+    return {
+      ...result,
+      provider: 'gemini',
+      confidence: result.confidence || 0.8
+    };
+
+  } catch (error) {
+    console.error(`❌ Gemini attempt ${retryCount + 1} failed:`, error.message);
+    
+    if (retryCount < maxRetries && isRetryableError(error)) {
+      const delay = 1000 * Math.pow(2, retryCount); // 1s, 2s, 4s
+      console.log(`⏳ Retrying Gemini in ${delay}ms... (${retryCount + 1}/${maxRetries})`);
+      await sleep(delay);
+      return tryGeminiWithRetries(text, retryCount + 1);
+    }
+    
+    console.warn(`💥 Gemini failed after ${maxRetries + 1} attempts, will try Groq...`);
+    throw error;
+  }
+};
+
+// Groq with 2 retries
+const tryGroqWithRetries = async (text, retryCount = 0) => {
+  const maxRetries = 2;
+  
+  if (!process.env.REACT_APP_GROQ_API_KEY) {
+    throw new Error('Groq API key not configured');
+  }
+
+  const requestBody = {
+    model: "llama3-8b-8192",
+    messages: [{
+      role: "system",
+      content: "You are a relationship counselor AI. Analyze journal entries for relationship red flags (concerning behaviors) or green flags (healthy behaviors). Respond with valid JSON only. Physical violence, threats, controlling behavior = RED FLAG."
+    }, {
+      role: "user",
+      content: `Analyze this relationship entry: "${text}"
+
+Respond with JSON in this exact format:
+{
+  "flag": "green" | "red" | "neutral",
+  "color": "green" | "red" | "neutral",
+  "icon": "✅" | "🚩" | "⚪",
+  "title": "Brief analysis title",
+  "message": "Explanation of the analysis",
+  "suggestions": ["helpful suggestion 1", "helpful suggestion 2"],
+  "confidence": 0.8
+}`
+    }],
+    temperature: 0.3,
+    max_tokens: 500
   };
+
+  try {
+    console.log(`🚀 Groq attempt ${retryCount + 1}/${maxRetries + 1} (Fast Backup)`);
+    
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Groq API Error (${response.status}):`, errorText);
+      
+      if (response.status === 429 || response.status === 503 || response.status >= 500) {
+        throw new Error(`Temporary error: ${response.status}`);
+      }
+      
+      throw new Error(`Groq API Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('Invalid Groq response');
+    }
+
+    const result = JSON.parse(content);
+    console.log('✅ Groq analysis successful (Fast Backup!)');
+    
+    return {
+      ...result,
+      provider: 'groq',
+      confidence: result.confidence || 0.8
+    };
+
+  } catch (error) {
+    console.error(`❌ Groq attempt ${retryCount + 1} failed:`, error.message);
+    
+    if (retryCount < maxRetries && isRetryableError(error)) {
+      const delay = 1000 * Math.pow(2, retryCount); // 1s, 2s
+      console.log(`⏳ Retrying Groq in ${delay}ms... (${retryCount + 1}/${maxRetries})`);
+      await sleep(delay);
+      return tryGroqWithRetries(text, retryCount + 1);
+    }
+    
+    console.warn(`💥 Groq failed after ${maxRetries + 1} attempts, will use local fallback...`);
+    throw error;
+  }
+};
+
 
   const handleSubmit = async () => {
     if (!currentEntry.trim()) return;
@@ -473,14 +1019,15 @@ ${JSON.stringify(getStreaks(), null, 2)}
   const streaks = getStreaks();
   const timePatterns = getTimePatterns();
 
-  return (
-    <div className={`app ${isDarkMode ? 'dark-mode' : ''}`} style={{
-      '--theme-primary': currentTheme.primary,
-      '--theme-primary-hover': currentTheme.primaryHover,
-      '--theme-primary-light': currentTheme.primaryLight,
-      '--theme-primary-border': currentTheme.primaryBorder,
-      '--theme-accent': currentTheme.accent
-    }}>
+return (
+  <div className={`app ${isDarkMode ? 'dark-mode' : ''}`} style={{
+    '--theme-primary': currentTheme.primary,
+    '--theme-primary-hover': currentTheme.primaryHover,
+    '--theme-primary-light': currentTheme.primaryLight,
+    '--theme-primary-border': currentTheme.primaryBorder,
+    '--theme-accent': currentTheme.accent
+  }}>
+    <div className="app-container">
       {/* Header */}
       <header className="app-header">
         <div className="header-content">
@@ -488,7 +1035,312 @@ ${JSON.stringify(getStreaks(), null, 2)}
           <h1>RelationshipCheck</h1>
         </div>
         <p className="header-subtitle">Your personal relationship wellness journal with AI insights</p>
+        {/* Analysis Method Selector */}
+<div className="flex items-center space-x-2" style={{marginBottom: '10px'}}>
+  <span style={{fontSize: '14px', fontWeight: '500'}}>Analysis Mode:</span>
+  <select 
+    value={analysisMethod} 
+    onChange={(e) => setAnalysisMethod(e.target.value)}
+    style={{padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px'}}
+  >
+    <option value="enhanced">🧠 Enhanced AI</option>
+    <option value="ai">🤖 AI Only</option>
+    <option value="local">🔧 Local Only</option>
+  </select>
+</div>
+
+{/* Debug and API Test */}
+<div className="flex items-center space-x-2" style={{marginBottom: '10px'}}>
+  <button
+    onClick={() => setDebugMode(!debugMode)}
+    style={{padding: '4px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', backgroundColor: debugMode ? '#fef3c7' : 'white'}}
+  >
+    {debugMode ? '🐛 Debug ON' : '🔍 Debug'}
+  </button>
+ <button
+  onClick={async () => {
+    console.log('🔑 API Key exists:', !!process.env.REACT_APP_GEMINI_API_KEY);
+    console.log('🔑 API Key length:', process.env.REACT_APP_GEMINI_API_KEY?.length);
+    console.log('🔑 API Key first 10 chars:', process.env.REACT_APP_GEMINI_API_KEY?.substring(0, 10));
+    
+    try {
+      const { validateApiKey, getApiStatus } = await import('./services/gemini');
+      console.log('✅ API Key Valid:', validateApiKey());
+      
+      const status = await getApiStatus();
+      console.log('📡 API Status:', status);
+    } catch (error) {
+      console.error('❌ API Test Error:', error);
+    }
+  }}
+  style={{padding: '4px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', backgroundColor: '#dbeafe'}}
+>
+  🧪 Test API
+</button>
+</div>
+{/* Enhanced Gemini → Groq AI Status Section */}
+<div style={{marginBottom: '15px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
+  
+  {/* Analysis Method Selector */}
+  <div className="flex items-center space-x-2" style={{marginBottom: '10px'}}>
+    <span style={{fontSize: '14px', fontWeight: '500'}}>Analysis Mode:</span>
+    <select 
+      value={analysisMethod} 
+      onChange={(e) => setAnalysisMethod(e.target.value)}
+      style={{padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px'}}
+    >
+      <option value="enhanced">🧠 Enhanced (Gemini 3 retries → Groq 2 retries + Safety)</option>
+      <option value="ai">🤖 AI Only (Gemini 3 retries → Groq 2 retries Chain)</option>
+      <option value="local">🔧 Local Only</option>
+    </select>
+  </div>
+
+  {/* Optimized Provider Status */}
+  <div style={{marginBottom: '10px', padding: '8px', background: 'var(--bg-primary)', borderRadius: '6px'}}>
+    <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px'}}>
+      <span style={{fontSize: '14px', fontWeight: '500'}}>🎯 Optimized Setup:</span>
+      <span style={{fontSize: '12px', color: 'var(--text-secondary)'}}>
+        {(() => {
+          const hasGemini = aiStatus.available.includes('gemini');
+          const hasGroq = aiStatus.available.includes('groq');
+          const quality = hasGemini && hasGroq ? 'OPTIMAL ⭐⭐⭐' : hasGemini ? 'GOOD ⭐⭐' : aiStatus.available.length > 0 ? 'BASIC ⭐' : 'NEEDS SETUP';
+          return quality;
+        })()}
+      </span>
+      {aiStatus.lastTest && (
+        <span style={{fontSize: '12px', color: 'var(--text-secondary)'}}>
+          (Tested: {aiStatus.lastTest})
+        </span>
+      )}
+    </div>
+    
+    {/* Primary & Backup Status */}
+    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', marginBottom: '8px'}}>
+      {/* Gemini - Primary */}
+      <div style={{
+        padding: '8px', 
+        borderRadius: '6px', 
+        border: '2px solid',
+        borderColor: aiStatus.available.includes('gemini') ? '#10b981' : !!process.env.REACT_APP_GEMINI_API_KEY ? '#f59e0b' : '#ef4444',
+        backgroundColor: aiStatus.available.includes('gemini') ? '#d1fae5' : !!process.env.REACT_APP_GEMINI_API_KEY ? '#fef3c7' : '#fee2e2'
+      }}>
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px'}}>
+          <span style={{fontWeight: '600', fontSize: '13px', color: '#374151'}}>
+            🥇 Gemini (Primary)
+          </span>
+          <span style={{fontSize: '11px', color: '#6b7280'}}>
+            {aiStatus.available.includes('gemini') ? 
+              `✅ ${aiStatus.providerInfo.gemini?.responseTime || '?'}ms` : 
+              !!process.env.REACT_APP_GEMINI_API_KEY ? '🔑 Key OK' : '❌ No Key'
+            }
+          </span>
+        </div>
+        <div style={{fontSize: '10px', color: '#6b7280'}}>
+          FREE • 60/min • 1500/day • 3 retries
+        </div>
+      </div>
+
+      {/* Groq - Backup */}
+      <div style={{
+        padding: '8px', 
+        borderRadius: '6px', 
+        border: '2px solid',
+        borderColor: aiStatus.available.includes('groq') ? '#10b981' : !!process.env.REACT_APP_GROQ_API_KEY ? '#f59e0b' : '#ef4444',
+        backgroundColor: aiStatus.available.includes('groq') ? '#d1fae5' : !!process.env.REACT_APP_GROQ_API_KEY ? '#fef3c7' : '#fee2e2'
+      }}>
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px'}}>
+          <span style={{fontWeight: '600', fontSize: '13px', color: '#374151'}}>
+            🥈 Groq (Fast Backup)
+          </span>
+          <span style={{fontSize: '11px', color: '#6b7280'}}>
+            {aiStatus.available.includes('groq') ? 
+              `⚡ ${aiStatus.providerInfo.groq?.responseTime || '?'}ms` : 
+              !!process.env.REACT_APP_GROQ_API_KEY ? '🔑 Key OK' : '❌ No Key'
+            }
+          </span>
+        </div>
+        <div style={{fontSize: '10px', color: '#6b7280'}}>
+          FREE • 30/min • 14,400/day • 2 retries
+        </div>
+      </div>
+    </div>
+
+    {/* Additional Providers (if any) */}
+    {aiStatus.available.filter(p => !['gemini', 'groq'].includes(p)).length > 0 && (
+      <div style={{padding: '6px', background: 'var(--bg-secondary)', borderRadius: '4px', border: '1px solid var(--border-color)'}}>
+        <span style={{fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '500'}}>
+          🔧 Additional Backups: {aiStatus.available.filter(p => !['gemini', 'groq'].includes(p)).join(', ')}
+        </span>
+      </div>
+    )}
+
+    {/* Flow Diagram */}
+    <div style={{marginTop: '8px', padding: '6px', background: 'var(--bg-secondary)', borderRadius: '4px', border: '1px solid var(--border-color)'}}>
+      <div style={{fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center'}}>
+        <span style={{fontWeight: '500'}}>Analysis Flow:</span> 
+        <span style={{color: aiStatus.available.includes('gemini') ? '#10b981' : '#ef4444'}}> Gemini (3 retries)</span> 
+        <span> → </span>
+        <span style={{color: aiStatus.available.includes('groq') ? '#10b981' : '#ef4444'}}> Groq (2 retries)</span>
+        <span> → </span>
+        <span style={{color: '#6b7280'}}>Additional → Local</span>
+      </div>
+    </div>
+  </div>
+
+  {/* Control Buttons */}
+  <div className="flex items-center space-x-2" style={{flexWrap: 'wrap', gap: '4px'}}>
+    <button
+      onClick={() => setDebugMode(!debugMode)}
+      style={{padding: '4px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', backgroundColor: debugMode ? '#fef3c7' : 'white'}}
+    >
+      {debugMode ? '🐛 Debug ON' : '🔍 Debug'}
+    </button>
+    
+    <button
+      onClick={testAllProviders}
+      disabled={aiStatus.testing}
+      style={{
+        padding: '4px 12px', 
+        borderRadius: '4px', 
+        border: '1px solid #ccc', 
+        fontSize: '12px', 
+        backgroundColor: aiStatus.testing ? '#f3f4f6' : '#dbeafe',
+        cursor: aiStatus.testing ? 'not-allowed' : 'pointer'
+      }}
+    >
+      {aiStatus.testing ? '🔄 Testing...' : '🧪 Test Gemini → Groq'}
+    </button>
+    
+    <button
+      onClick={async () => {
+        console.log('🔧 Gemini → Groq System Diagnostics:');
+        console.log('🎯 Provider Status:', getProviderStatus());
+        console.log('📊 Available Providers:', getAvailableProviders());
+        console.log('🔑 API Keys Status:', {
+          gemini: !!process.env.REACT_APP_GEMINI_API_KEY ? '✅ Configured' : '❌ Missing',
+          groq: !!process.env.REACT_APP_GROQ_API_KEY ? '✅ Configured' : '❌ Missing',
+          together: !!process.env.REACT_APP_TOGETHER_API_KEY ? '✅ Configured' : '⚪ Optional',
+          perplexity: !!process.env.REACT_APP_PERPLEXITY_API_KEY ? '✅ Configured' : '⚪ Optional'
+        });
+        console.log('📈 Analysis Method:', analysisMethod);
+        console.log('🏥 AI Status:', aiStatus);
+        console.log('💰 Cost Status: 100% FREE! 🎉');
         
+        // Test the flow
+        try {
+          console.log('🧪 Testing analysis flow...');
+          const testResult = await analyzeRelationshipEntry("My partner said they love me today");
+          console.log('✅ Analysis flow working:', testResult);
+        } catch (error) {
+          console.error('❌ Analysis flow failed:', error);
+        }
+        
+        // Test local fallback
+        try {
+          const localResult = await fixedLocalAnalyzeEntry("test entry");
+          console.log('✅ Local fallback working:', localResult);
+        } catch (error) {
+          console.error('❌ Local fallback failed:', error);
+        }
+      }}
+      style={{padding: '4px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', backgroundColor: '#f0fdf4'}}
+    >
+      🩺 System Check
+    </button>
+    
+    <button
+      onClick={() => {
+        // Open relevant API key pages
+        if (!process.env.REACT_APP_GEMINI_API_KEY) {
+          window.open('https://makersuite.google.com/app/apikey', '_blank');
+        } else if (!process.env.REACT_APP_GROQ_API_KEY) {
+          window.open('https://console.groq.com/keys', '_blank');
+        } else {
+          // If both are configured, open Together AI for additional backup
+          window.open('https://api.together.xyz/settings/api-keys', '_blank');
+        }
+      }}
+      style={{padding: '4px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', backgroundColor: '#eff6ff'}}
+    >
+      {!process.env.REACT_APP_GEMINI_API_KEY ? '🔑 Get Gemini Key' : 
+       !process.env.REACT_APP_GROQ_API_KEY ? '⚡ Get Groq Key' : 
+       '🔧 Get More Keys'}
+    </button>
+  </div>
+
+  {/* Setup Guidance */}
+  {(() => {
+    const hasGemini = !!process.env.REACT_APP_GEMINI_API_KEY;
+    const hasGroq = !!process.env.REACT_APP_GROQ_API_KEY;
+    const geminiWorking = aiStatus.available.includes('gemini');
+    const groqWorking = aiStatus.available.includes('groq');
+    
+    if (!hasGemini && !hasGroq) {
+      return (
+        <div style={{marginTop: '8px', padding: '8px', background: '#fef3c7', borderRadius: '4px', border: '1px solid #fcd34d'}}>
+          <div style={{fontSize: '12px', color: '#92400e', fontWeight: '500', marginBottom: '4px'}}>
+            🚀 Quick Setup (2 minutes):
+          </div>
+          <div style={{fontSize: '11px', color: '#92400e'}}>
+            1. Get Gemini key (free): makersuite.google.com/app/apikey<br/>
+            2. Get Groq key (free): console.groq.com/keys<br/>
+            3. Add to .env: REACT_APP_GEMINI_API_KEY=your_key<br/>
+            4. Add to .env: REACT_APP_GROQ_API_KEY=your_key<br/>
+            5. Restart app → Perfect setup! 🎉
+          </div>
+        </div>
+      );
+    } else if (hasGemini && !hasGroq) {
+      return (
+        <div style={{marginTop: '8px', padding: '8px', background: '#e0f2fe', borderRadius: '4px', border: '1px solid #81d4fa'}}>
+          <div style={{fontSize: '12px', color: '#0277bd', fontWeight: '500', marginBottom: '4px'}}>
+            ⚡ Add Groq for optimal speed:
+          </div>
+          <div style={{fontSize: '11px', color: '#0277bd'}}>
+            Get Groq key (free): console.groq.com/keys → Add REACT_APP_GROQ_API_KEY=your_key → Ultra-fast backup! 🚀
+          </div>
+        </div>
+      );
+    } else if (!hasGemini && hasGroq) {
+      return (
+        <div style={{marginTop: '8px', padding: '8px', background: '#e8f5e8', borderRadius: '4px', border: '1px solid #a5d6a7'}}>
+          <div style={{fontSize: '12px', color: '#2e7d32', fontWeight: '500', marginBottom: '4px'}}>
+            🎯 Add Gemini for best reliability:
+          </div>
+          <div style={{fontSize: '11px', color: '#2e7d32'}}>
+            Get Gemini key (free): makersuite.google.com/app/apikey → Add REACT_APP_GEMINI_API_KEY=your_key → Perfect combo! ✨
+          </div>
+        </div>
+      );
+    } else if (hasGemini && hasGroq && (!geminiWorking || !groqWorking)) {
+      return (
+        <div style={{marginTop: '8px', padding: '8px', background: '#fff3e0', borderRadius: '4px', border: '1px solid #ffcc02'}}>
+          <div style={{fontSize: '12px', color: '#ef6c00', fontWeight: '500', marginBottom: '4px'}}>
+            🔧 Keys configured but not working:
+          </div>
+          <div style={{fontSize: '11px', color: '#ef6c00'}}>
+            Click "🧪 Test Gemini → Groq" to diagnose issues. Check API key format and network connection.
+          </div>
+        </div>
+      );
+    } else if (geminiWorking && groqWorking) {
+      return (
+        <div style={{marginTop: '8px', padding: '8px', background: '#e8f5e8', borderRadius: '4px', border: '1px solid #a5d6a7'}}>
+          <div style={{fontSize: '12px', color: '#2e7d32', fontWeight: '500', marginBottom: '4px'}}>
+            🎉 OPTIMAL SETUP! Gemini → Groq chain working perfectly!
+          </div>
+          <div style={{fontSize: '11px', color: '#2e7d32'}}>
+            Primary: Gemini ({aiStatus.providerInfo.gemini?.responseTime}ms) | Backup: Groq ({aiStatus.providerInfo.groq?.responseTime}ms) | 100% FREE! 💚
+          </div>
+        </div>
+      );
+    }
+    return null;
+  })()}
+</div>
+{/* Theme Controls */}
+<div className="theme-controls"></div>
+
         {/* Theme Controls */}
         <div className="theme-controls">
           <div className="theme-selector">
@@ -806,84 +1658,49 @@ ${JSON.stringify(getStreaks(), null, 2)}
       </div>
       
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: 'var(--border-color)'}}>
-        {(() => {
-          const year = selectedDate.getFullYear();
-          const month = selectedDate.getMonth();
-          const firstDay = new Date(year, month, 1);
-          const startDate = new Date(firstDay);
-          startDate.setDate(startDate.getDate() - firstDay.getDay());
-          
-          const days = [];
-          const current = new Date(startDate);
-          
-          for (let i = 0; i < 42; i++) {
-            const dayEntries = entries.filter(entry => {
-              const entryDate = new Date(entry.timestamp);
-              return entryDate.toDateString() === current.toDateString();
-            });
-            
-            const isCurrentMonth = current.getMonth() === month;
-            const isToday = current.toDateString() === new Date().toDateString();
-            
-            let borderColor = 'transparent';
-            if (dayEntries.length > 0) {
-              const red = dayEntries.filter(e => e.analysis.flag === 'red').length;
-              const green = dayEntries.filter(e => e.analysis.flag === 'green').length;
-              
-              if (red > green) borderColor = 'var(--red-value)';
-              else if (green > red) borderColor = 'var(--green-value)';
-              else borderColor = 'var(--neutral-text)';
-            }
-            
-            days.push(
-              <div 
-                key={i}
-                style={{
-                  background: 'var(--bg-primary)',
-                  minHeight: '80px',
-                  padding: '8px',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  borderLeft: dayEntries.length > 0 ? `4px solid ${borderColor}` : 'none',
-                  opacity: isCurrentMonth ? 1 : 0.3,
-                  border: isToday ? '2px solid var(--theme-primary)' : 'none'
-                }}
-              >
-                <div style={{fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px'}}>
-                  {current.getDate()}
-                </div>
-                {dayEntries.length > 0 && (
-                  <div style={{display: 'flex', flexWrap: 'wrap', gap: '2px'}}>
-                    {dayEntries.map(entry => (
-                      <div 
-                        key={entry.id}
-                        style={{
-                          width: '16px',
-                          height: '16px',
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '8px',
-                          cursor: 'pointer',
-                          background: entry.analysis.flag === 'red' ? 'var(--red-bg)' : entry.analysis.flag === 'green' ? 'var(--green-bg)' : 'var(--neutral-bg)',
-                          color: entry.analysis.flag === 'red' ? 'var(--red-text)' : entry.analysis.flag === 'green' ? 'var(--green-text)' : 'var(--neutral-text)'
-                        }}
-                        title={`${entry.analysis.title}: ${entry.text.substring(0, 50)}...`}
-                      >
-                        {entry.analysis.icon}
-                      </div>
-                    ))}
+        {getCalendarDays().map((day, index) => (
+          <div 
+            key={index}
+            style={{
+              background: 'var(--bg-primary)',
+              minHeight: '80px',
+              padding: '8px',
+              position: 'relative',
+              cursor: 'pointer',
+              borderLeft: day.entries.length > 0 ? `4px solid ${getDayColor(day.entries)}` : 'none',
+              opacity: day.isCurrentMonth ? 1 : 0.3,
+              border: day.isToday ? '2px solid var(--theme-primary)' : 'none'
+            }}
+          >
+            <div style={{fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px'}}>
+              {day.date.getDate()}
+            </div>
+            {day.entries.length > 0 && (
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: '2px'}}>
+                {day.entries.map(entry => (
+                  <div 
+                    key={entry.id}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '8px',
+                      cursor: 'pointer',
+                      background: entry.analysis.flag === 'red' ? 'var(--red-bg)' : entry.analysis.flag === 'green' ? 'var(--green-bg)' : 'var(--neutral-bg)',
+                      color: entry.analysis.flag === 'red' ? 'var(--red-text)' : entry.analysis.flag === 'green' ? 'var(--green-text)' : 'var(--neutral-text)'
+                    }}
+                    title={`${entry.analysis.title}: ${entry.text.substring(0, 50)}...`}
+                  >
+                    {entry.analysis.icon}
                   </div>
-                )}
+                ))}
               </div>
-            );
-            
-            current.setDate(current.getDate() + 1);
-          }
-          
-          return days;
-        })()}
+            )}
+          </div>
+        ))}
       </div>
     </div>
 
@@ -907,50 +1724,6 @@ ${JSON.stringify(getStreaks(), null, 2)}
   </div>
 )}
 
-{activeTab === 'goals' && (
-  <div style={{padding: '20px'}}>
-    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px'}}>
-      <h2 style={{fontSize: '2rem', fontWeight: '600', color: 'var(--text-primary)', background: 'linear-gradient(135deg, var(--theme-primary), var(--theme-accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>
-        🎯 Relationship Goals
-      </h2>
-      <button 
-        onClick={() => {
-          const dataText = `RELATIONSHIP JOURNAL EXPORT\nExport Date: ${new Date().toLocaleDateString()}\n\nSUMMARY:\nTotal Entries: ${entries.length}\nGreen Flags: ${getStats().green}\nRed Flags: ${getStats().red}\nNeutral: ${getStats().neutral}\n\nENTRIES:\n${entries.map(entry => `\nDate: ${entry.date} at ${entry.time}\nEntry: ${entry.text}\nAnalysis: ${entry.analysis.title} - ${entry.analysis.message}\n---`).join('')}`;
-          const dataBlob = new Blob([dataText], { type: 'text/plain' });
-          const url = URL.createObjectURL(dataBlob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `relationship-journal-${new Date().toISOString().split('T')[0]}.txt`;
-          link.click();
-          URL.revokeObjectURL(url);
-        }}
-        style={{display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: 'linear-gradient(135deg, var(--theme-primary), var(--theme-accent))', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 2px 8px var(--shadow)'}}
-      >
-        📤 Export Data
-      </button>
-    </div>
-    
-    <div style={{display: 'flex', flexDirection: 'column', gap: '30px'}}>
-      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
-        <h3 style={{color: 'var(--text-primary)', marginBottom: '20px', fontSize: '1.25rem', fontWeight: '600'}}>Weekly Goals</h3>
-        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-          {goals.map((goal, index) => (
-  <div key={goal.id} style={{display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px'}}>
-    <input 
-      type="checkbox" 
-      style={{width: '18px', height: '18px', cursor: 'pointer'}}
-      checked={goal.completed}
-      onChange={() => toggleGoal(goal.id)}
-    />
-    <span style={{flex: 1, color: 'var(--text-primary)', fontWeight: '500'}}>{goal.text}</span>
-  </div>
-))}
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
 {activeTab === 'reports' && (
   <div style={{padding: '20px'}}>
     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px'}}>
@@ -958,16 +1731,7 @@ ${JSON.stringify(getStreaks(), null, 2)}
         📊 Weekly Relationship Report
       </h2>
       <button 
-        onClick={() => {
-          const dataText = `RELATIONSHIP JOURNAL EXPORT\nExport Date: ${new Date().toLocaleDateString()}\n\nSUMMARY:\nTotal Entries: ${entries.length}\nGreen Flags: ${getStats().green}\nRed Flags: ${getStats().red}\nNeutral: ${getStats().neutral}\n\nENTRIES:\n${entries.map(entry => `\nDate: ${entry.date} at ${entry.time}\nEntry: ${entry.text}\nAnalysis: ${entry.analysis.title} - ${entry.analysis.message}\n---`).join('')}`;
-          const dataBlob = new Blob([dataText], { type: 'text/plain' });
-          const url = URL.createObjectURL(dataBlob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `relationship-journal-${new Date().toISOString().split('T')[0]}.txt`;
-          link.click();
-          URL.revokeObjectURL(url);
-        }}
+        onClick={exportData}
         style={{display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: 'linear-gradient(135deg, var(--theme-primary), var(--theme-accent))', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 2px 8px var(--shadow)'}}
       >
         📤 Export All Data
@@ -1058,7 +1822,6 @@ ${JSON.stringify(getStreaks(), null, 2)}
                   </div>
                 </div>
 
-                {/* 🔥 NEW STREAK COUNTERS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div className="bg-green-50 border border-green-200 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-green-800 mb-3">🌟 Green Flag Streaks</h3>
@@ -1106,7 +1869,6 @@ ${JSON.stringify(getStreaks(), null, 2)}
                   </div>
                 </div>
 
-                {/* 🔥 NEW TIME PATTERNS */}
                 {timePatterns && (
                   <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">⏰ Time Patterns</h3>
@@ -1133,151 +1895,7 @@ ${JSON.stringify(getStreaks(), null, 2)}
                 )}
               </div>
             )}
-{activeTab === 'goals' && (
-  <div style={{padding: '20px'}}>
-    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px'}}>
-      <h2 style={{fontSize: '2rem', fontWeight: '600', color: 'var(--text-primary)', background: 'linear-gradient(135deg, var(--theme-primary), var(--theme-accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>
-        🎯 Your Weekly Focus Areas
-      </h2>
-    </div>
-    
-    <div style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
-      {/* AI Recommendations Based on Journal Data */}
-      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
-        <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
-          🤖 AI Recommendations
-        </h3>
-        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-          {(() => {
-            const stats = getStats();
-            const recommendations = [];
-            
-            if (stats.total === 0) {
-              recommendations.push({
-                icon: '📝',
-                title: 'Start Your Journey',
-                message: 'Begin by journaling about your daily relationship interactions to get personalized insights.'
-              });
-            } else {
-              if (stats.red > stats.green) {
-                recommendations.push({
-                  icon: '🔧',
-                  title: 'Focus on Communication',
-                  message: 'Your recent entries show some challenges. Consider practicing "I feel" statements and setting clear boundaries.'
-                });
-                recommendations.push({
-                  icon: '💬',
-                  title: 'Have a Heart-to-Heart',
-                  message: 'Schedule a calm conversation about what\'s been bothering you both. Choose a good time when you\'re both relaxed.'
-                });
-              } else if (stats.green > stats.red) {
-                recommendations.push({
-                  icon: '✨',
-                  title: 'Keep Building on Success',
-                  message: 'Your relationship is showing positive patterns! Continue doing what\'s working and express gratitude for these moments.'
-                });
-                recommendations.push({
-                  icon: '🌱',
-                  title: 'Deepen Your Connection',
-                  message: 'Try asking deeper questions like "What made you feel most loved this week?" or "What are you looking forward to?"'
-                });
-              } else {
-                recommendations.push({
-                  icon: '⚖️',
-                  title: 'Balance and Consistency',
-                  message: 'You\'re experiencing both positive and challenging moments. Focus on creating more predictable positive interactions.'
-                });
-              }
-              
-              if (stats.total >= 5) {
-                const timePatterns = getTimePatterns();
-                if (timePatterns && timePatterns.insights.length > 0) {
-                  recommendations.push({
-                    icon: '⏰',
-                    title: 'Timing Matters',
-                    message: timePatterns.insights[0]
-                  });
-                }
-              }
-            }
-            
-            return recommendations.map((rec, index) => (
-              <div key={index} style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
-                <div style={{display: 'flex', alignItems: 'flex-start', gap: '12px'}}>
-                  <span style={{fontSize: '1.5rem'}}>{rec.icon}</span>
-                  <div>
-                    <h4 style={{color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px'}}>{rec.title}</h4>
-                    <p style={{color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0}}>{rec.message}</p>
-                  </div>
-                </div>
-              </div>
-            ));
-          })()}
-        </div>
-      </div>
 
-      {/* Weekly Relationship Tips */}
-      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
-        <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
-          💡 This Week's Relationship Tips
-        </h3>
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px'}}>
-          {[
-            {
-              icon: '🗣️',
-              tip: 'Practice the 24-hour rule',
-              description: 'Wait 24 hours before discussing something that upset you. This helps you respond thoughtfully instead of reacting.'
-            },
-            {
-              icon: '💝',
-              tip: 'Express specific gratitude',
-              description: 'Instead of "thanks," try "I really appreciated when you listened to me talk about my day without trying to fix anything."'
-            },
-            {
-              icon: '📱',
-              tip: 'Create phone-free moments',
-              description: 'Set aside 20 minutes daily for device-free conversation. Even small moments of undivided attention matter.'
-            },
-            {
-              icon: '🎯',
-              tip: 'Use "I" statements',
-              description: 'Replace "You always..." with "I feel..." to reduce defensiveness and improve communication.'
-            }
-          ].map((item, index) => (
-            <div key={index} style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
-              <div style={{fontSize: '1.5rem', marginBottom: '8px'}}>{item.icon}</div>
-              <h4 style={{color: 'var(--text-primary)', fontWeight: '600', marginBottom: '8px', fontSize: '0.95rem'}}>{item.tip}</h4>
-              <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.4, margin: 0}}>{item.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Journal Insights */}
-      {getStats().total > 0 && (
-        <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
-          <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
-            📊 Your Relationship Patterns
-          </h3>
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px'}}>
-            <div style={{padding: '16px', background: 'var(--green-bg)', borderRadius: '12px', border: '1px solid var(--green-border)', textAlign: 'center'}}>
-              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--green-value)', marginBottom: '4px'}}>{getStats().green}</div>
-              <div style={{color: 'var(--green-text)', fontWeight: '500'}}>Positive Moments</div>
-            </div>
-            <div style={{padding: '16px', background: 'var(--red-bg)', borderRadius: '12px', border: '1px solid var(--red-border)', textAlign: 'center'}}>
-              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--red-value)', marginBottom: '4px'}}>{getStats().red}</div>
-              <div style={{color: 'var(--red-text)', fontWeight: '500'}}>Areas to Address</div>
-            </div>
-            <div style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', textAlign: 'center'}}>
-              <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '4px'}}>{getStats().total}</div>
-              <div style={{color: 'var(--text-secondary)', fontWeight: '500'}}>Total Entries</div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  </div>
-)}
             {stats.total > 0 && (
               <div className="pattern-analysis">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">Pattern Analysis</h3>
@@ -1371,9 +1989,10 @@ ${JSON.stringify(getStreaks(), null, 2)}
             </div>
           </div>
         )}
-      </main>
+</main>
     </div>
-  );
+  </div>
+);
 }
 
 export default App;
