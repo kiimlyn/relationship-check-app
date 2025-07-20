@@ -145,7 +145,7 @@ const [aiStatus, setAiStatus] = useState({
 // ADD these lines after your existing useState declarations
 const [analysisMethod, setAnalysisMethod] = useState('enhanced');
 const [debugMode, setDebugMode] = useState(false);
-
+const showDebugStuff = process.env.NODE_ENV === 'development';
 // ADD this line after all your state declarations (before your functions)
 const analyzer = new RelationshipAnalyzer();
   const [currentEntry, setCurrentEntry] = useState('');
@@ -155,11 +155,19 @@ const analyzer = new RelationshipAnalyzer();
   const [theme, setTheme] = useState('pink');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [goals, setGoals] = useState([
-    { id: 1, text: 'Practice active listening', completed: false, week: getCurrentWeek() },
-    { id: 2, text: 'Express gratitude daily', completed: false, week: getCurrentWeek() },
+// REPLACE the existing goals useState with this:
+const [goals, setGoals] = useState(() => {
+  const savedGoals = localStorage.getItem('relationshipGoals');
+  if (savedGoals) {
+    return JSON.parse(savedGoals);
+  }
+  // Default goals for new users
+  return [
+    { id: 1, text: 'Practice active listening this week', completed: false, week: getCurrentWeek() },
+    { id: 2, text: 'Express gratitude to my partner daily', completed: false, week: getCurrentWeek() },
     { id: 3, text: 'Have one meaningful conversation', completed: false, week: getCurrentWeek() }
-  ]);
+  ];
+});
   // Add this function to your App.js with your other functions
 const testAllProviders = async () => {
   setAiStatus(prev => ({ ...prev, testing: true }));
@@ -207,6 +215,106 @@ const testAllProviders = async () => {
   return results;
 };
 
+// ADD THIS NEW FUNCTION RIGHT BEFORE getCurrentWeek()
+const getWeeklyTips = () => {
+  const currentWeek = getCurrentWeek();
+  
+  // Array of weekly tip sets - rotates every week
+  const weeklyTipSets = [
+    [
+      {
+        icon: '🗣️',
+        tip: 'Practice the 24-hour rule',
+        description: 'Wait 24 hours before discussing something that upset you. This helps you respond thoughtfully instead of reacting.'
+      },
+      {
+        icon: '💝',
+        tip: 'Express specific gratitude',
+        description: 'Instead of "thanks," try "I really appreciated when you listened to me talk about my day without trying to fix anything."'
+      },
+      {
+        icon: '📱',
+        tip: 'Create phone-free moments',
+        description: 'Set aside 20 minutes daily for device-free conversation. Even small moments of undivided attention matter.'
+      },
+      {
+        icon: '🎯',
+        tip: 'Use "I" statements',
+        description: 'Replace "You always..." with "I feel..." to reduce defensiveness and improve communication.'
+      }
+    ],
+    [
+      {
+        icon: '👂',
+        tip: 'Practice active listening',
+        description: 'Put down devices, make eye contact, and repeat back what you heard to show you\'re truly listening.'
+      },
+      {
+        icon: '💕',
+        tip: 'Daily appreciation ritual',
+        description: 'Share one thing you appreciated about your partner each day, no matter how small.'
+      },
+      {
+        icon: '🤝',
+        tip: 'Take responsibility',
+        description: 'When you make a mistake, own it fully without making excuses or blaming your partner.'
+      },
+      {
+        icon: '🌱',
+        tip: 'Support their dreams',
+        description: 'Ask about their goals and find specific ways to encourage and support their aspirations.'
+      }
+    ],
+    [
+      {
+        icon: '⏰',
+        tip: 'Schedule quality time',
+        description: 'Block out time for each other like you would any important appointment - and protect that time.'
+      },
+      {
+        icon: '🎭',
+        tip: 'Try something new together',
+        description: 'Shared new experiences create bonding and give you fresh things to talk about.'
+      },
+      {
+        icon: '🔄',
+        tip: 'Check in regularly',
+        description: 'Ask "How are we doing?" weekly. Create space for honest feedback about the relationship.'
+      },
+      {
+        icon: '🎁',
+        tip: 'Love languages awareness',
+        description: 'Learn your partner\'s love language and make an effort to show love in ways they recognize.'
+      }
+    ],
+    [
+      {
+        icon: '🤔',
+        tip: 'Ask deeper questions',
+        description: 'Move beyond "How was your day?" Try "What made you feel most alive today?" or "What are you curious about?"'
+      },
+      {
+        icon: '🛡️',
+        tip: 'Respect boundaries',
+        description: 'When someone says no or needs space, respect it immediately without arguing or negotiating.'
+      },
+      {
+        icon: '😌',
+        tip: 'Practice patience',
+        description: 'Give your partner time to process and respond, especially during emotional conversations.'
+      },
+      {
+        icon: '🎉',
+        tip: 'Celebrate small wins',
+        description: 'Acknowledge and celebrate your partner\'s achievements, even the small daily victories.'
+      }
+    ]
+  ];
+  
+  // Use modulo to cycle through tip sets based on week number
+  const tipSetIndex = currentWeek % weeklyTipSets.length;
+  return weeklyTipSets[tipSetIndex];
+};
   function getCurrentWeek() {
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -591,7 +699,7 @@ Respond with JSON in this exact format:
   "confidence": 0.8
 }`
     }],
-    temperature: 0.3,
+    temperature: 0.2,
     max_tokens: 500
   };
 
@@ -868,6 +976,18 @@ ${JSON.stringify(getStreaks(), null, 2)}
     setGoals([...goals, newGoal]);
   };
 
+  // ADD this NEW function RIGHT AFTER the addGoal function:
+const resetWeeklyGoals = () => {
+  const currentWeek = getCurrentWeek();
+  const updatedGoals = goals.map(goal => ({
+    ...goal,
+    completed: false,
+    week: currentWeek
+  }));
+  setGoals(updatedGoals);
+  localStorage.setItem('relationshipGoals', JSON.stringify(updatedGoals));
+};
+
   const getCalendarDays = () => {
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth();
@@ -1017,7 +1137,19 @@ ${JSON.stringify(getStreaks(), null, 2)}
 
   const stats = getStats();
   const streaks = getStreaks();
-  const timePatterns = getTimePatterns();
+const timePatterns = getTimePatterns();
+const getRecentEntriesSummary = () => {
+  if (entries.length === 0) return 'No previous entries';
+  
+  const recent = entries.slice(0, 5);
+  const summary = recent.map(entry => {
+    const flag = entry.analysis.flag;
+    const date = entry.date;
+    return `${date}: ${flag} flag`;
+  }).join('\n');
+  
+  return `Recent patterns:\n${summary}`;
+};
 
 return (
   <div className={`app ${isDarkMode ? 'dark-mode' : ''}`} style={{
@@ -1035,19 +1167,8 @@ return (
           <h1>RelationshipCheck</h1>
         </div>
         <p className="header-subtitle">Your personal relationship wellness journal with AI insights</p>
-        {/* Analysis Method Selector */}
-<div className="flex items-center space-x-2" style={{marginBottom: '10px'}}>
-  <span style={{fontSize: '14px', fontWeight: '500'}}>Analysis Mode:</span>
-  <select 
-    value={analysisMethod} 
-    onChange={(e) => setAnalysisMethod(e.target.value)}
-    style={{padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px'}}
-  >
-    <option value="enhanced">🧠 Enhanced AI</option>
-    <option value="ai">🤖 AI Only</option>
-    <option value="local">🔧 Local Only</option>
-  </select>
-</div>
+       
+        <></>
 
 {/* Debug and API Test */}
 <div className="flex items-center space-x-2" style={{marginBottom: '10px'}}>
@@ -1079,8 +1200,7 @@ return (
 </button>
 </div>
 {/* Enhanced Gemini → Groq AI Status Section */}
-<div style={{marginBottom: '15px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
-  
+<div className={showDebugStuff ? 'debug-visible' : 'debug-hidden'} style={{marginBottom: '15px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>  
   {/* Analysis Method Selector */}
   <div className="flex items-center space-x-2" style={{marginBottom: '10px'}}>
     <span style={{fontSize: '14px', fontWeight: '500'}}>Analysis Mode:</span>
@@ -1089,8 +1209,8 @@ return (
       onChange={(e) => setAnalysisMethod(e.target.value)}
       style={{padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px'}}
     >
-      <option value="enhanced">🧠 Enhanced (Gemini 3 retries → Groq 2 retries + Safety)</option>
-      <option value="ai">🤖 AI Only (Gemini 3 retries → Groq 2 retries Chain)</option>
+      <option value="enhanced">🧠 Enhanced AI</option>
+      <option value="ai">🤖 AI Only</option>
       <option value="local">🔧 Local Only</option>
     </select>
   </div>
@@ -1338,10 +1458,8 @@ return (
     return null;
   })()}
 </div>
-{/* Theme Controls */}
-<div className="theme-controls"></div>
 
-        {/* Theme Controls */}
+{/* Theme Controls */}
         <div className="theme-controls">
           <div className="theme-selector">
             <button 
@@ -1478,15 +1596,111 @@ return (
     </div>
   </div>
 )}
-       {activeTab === 'goals' && (
+{activeTab === 'goals' && (
   <div style={{padding: '20px'}}>
     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px'}}>
       <h2 style={{fontSize: '2rem', fontWeight: '600', color: 'var(--text-primary)', background: 'linear-gradient(135deg, var(--theme-primary), var(--theme-accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>
         🎯 Your Weekly Focus Areas
       </h2>
+      <div style={{display: 'flex', gap: '12px'}}>
+        <button 
+          onClick={resetWeeklyGoals}
+          style={{padding: '8px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)'}}
+        >
+          🔄 Reset Goals
+        </button>
+        <div style={{padding: '8px 16px', background: 'var(--bg-secondary)', borderRadius: '8px', fontSize: '0.875rem', color: 'var(--text-secondary)'}}>
+          Week {getCurrentWeek()}
+        </div>
+      </div>
     </div>
     
     <div style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+      {/* Weekly Goals with Completion Tracking */}
+      <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
+        <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
+          ✅ This Week's Goals
+          <span style={{fontSize: '0.875rem', fontWeight: 'normal', color: 'var(--text-secondary)'}}>
+            ({goals.filter(g => g.completed).length}/{goals.length} completed)
+          </span>
+        </h3>
+        
+        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+          {goals.map(goal => (
+            <div 
+              key={goal.id}
+              style={{
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '12px', 
+                padding: '16px', 
+                background: goal.completed ? 'var(--green-bg)' : 'var(--bg-secondary)', 
+                borderRadius: '12px', 
+                border: goal.completed ? '1px solid var(--green-border)' : '1px solid var(--border-color)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onClick={() => toggleGoal(goal.id)}
+            >
+              <div style={{
+                width: '24px', 
+                height: '24px', 
+                borderRadius: '50%', 
+                border: goal.completed ? '2px solid var(--green-value)' : '2px solid var(--border-color)',
+                background: goal.completed ? 'var(--green-value)' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                {goal.completed && <span style={{color: 'white', fontSize: '12px'}}>✓</span>}
+              </div>
+              <span style={{
+                color: goal.completed ? 'var(--green-text)' : 'var(--text-primary)', 
+                fontWeight: '500',
+                textDecoration: goal.completed ? 'line-through' : 'none',
+                opacity: goal.completed ? 0.8 : 1
+              }}>
+                {goal.text}
+              </span>
+              {goal.completed && (
+                <span style={{marginLeft: 'auto', fontSize: '1.2rem'}}>🎉</span>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        {/* Add New Goal */}
+        <div style={{marginTop: '16px', padding: '12px', border: '2px dashed var(--border-color)', borderRadius: '8px'}}>
+          <input 
+            type="text"
+            placeholder="Add a new relationship goal for this week..."
+            style={{
+              width: '100%', 
+              padding: '8px 12px', 
+              border: 'none', 
+              background: 'transparent', 
+              fontSize: '0.875rem',
+              color: 'var(--text-primary)'
+            }}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && e.target.value.trim()) {
+                const newGoal = {
+                  id: Date.now(),
+                  text: e.target.value.trim(),
+                  completed: false,
+                  week: getCurrentWeek()
+                };
+                const updatedGoals = [...goals, newGoal];
+                setGoals(updatedGoals);
+                localStorage.setItem('relationshipGoals', JSON.stringify(updatedGoals));
+                e.target.value = '';
+              }
+            }}
+          />
+        </div>
+      </div>
+
       {/* AI Recommendations Based on Journal Data */}
       <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
         <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
@@ -1561,34 +1775,16 @@ return (
         </div>
       </div>
 
-      {/* Weekly Relationship Tips */}
+      {/* Weekly Relationship Tips - Now Rotating! */}
       <div style={{background: 'var(--bg-primary)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px var(--shadow)', border: '1px solid var(--border-color)'}}>
         <h3 style={{color: 'var(--text-primary)', marginBottom: '16px', fontSize: '1.25rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'}}>
           💡 This Week's Relationship Tips
+          <span style={{fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: '12px'}}>
+            Week {getCurrentWeek()} • Updates Weekly
+          </span>
         </h3>
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px'}}>
-          {[
-            {
-              icon: '🗣️',
-              tip: 'Practice the 24-hour rule',
-              description: 'Wait 24 hours before discussing something that upset you. This helps you respond thoughtfully instead of reacting.'
-            },
-            {
-              icon: '💝',
-              tip: 'Express specific gratitude',
-              description: 'Instead of "thanks," try "I really appreciated when you listened to me talk about my day without trying to fix anything."'
-            },
-            {
-              icon: '📱',
-              tip: 'Create phone-free moments',
-              description: 'Set aside 20 minutes daily for device-free conversation. Even small moments of undivided attention matter.'
-            },
-            {
-              icon: '🎯',
-              tip: 'Use "I" statements',
-              description: 'Replace "You always..." with "I feel..." to reduce defensiveness and improve communication.'
-            }
-          ].map((item, index) => (
+          {getWeeklyTips().map((item, index) => (
             <div key={index} style={{padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
               <div style={{fontSize: '1.5rem', marginBottom: '8px'}}>{item.icon}</div>
               <h4 style={{color: 'var(--text-primary)', fontWeight: '600', marginBottom: '8px', fontSize: '0.95rem'}}>{item.tip}</h4>
@@ -1623,6 +1819,7 @@ return (
     </div>
   </div>
 )}
+
 {activeTab === 'calendar' && (
   <div style={{padding: '20px'}}>
     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px'}}>
