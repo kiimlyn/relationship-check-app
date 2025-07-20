@@ -145,8 +145,7 @@ const [aiStatus, setAiStatus] = useState({
 // ADD these lines after your existing useState declarations
 const [analysisMethod, setAnalysisMethod] = useState('enhanced');
 const [debugMode, setDebugMode] = useState(false);
-const showDebugStuff = process.env.NODE_ENV === 'development';
-// ADD this line after all your state declarations (before your functions)
+const showDebugStuff = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';// ADD this line after all your state declarations (before your functions)
 const analyzer = new RelationshipAnalyzer();
   const [currentEntry, setCurrentEntry] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
