@@ -1456,3 +1456,11 @@ body {
 .insight-item {
   animation: slideIn 0.3s ease-out;
 }
+
+.debug-hidden {
+  display: none !important;
+}
+
+.debug-visible {
+  display: block;
+}
