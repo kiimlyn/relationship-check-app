@@ -917,54 +917,15 @@ ${JSON.stringify(getStreaks(), null, 2)}
     URL.revokeObjectURL(url);
   };
 
-  const generateWeeklyReport = () => {
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    
-    const weekEntries = entries.filter(entry => new Date(entry.timestamp) >= oneWeekAgo);
-    const weekStats = {
-      total: weekEntries.length,
-      red: weekEntries.filter(e => e.analysis.flag === 'red').length,
-      green: weekEntries.filter(e => e.analysis.flag === 'green').length,
-      neutral: weekEntries.filter(e => e.analysis.flag === 'neutral').length
-    };
-
-    if (weekStats.total === 0) {
-      return {
-        summary: "No entries this week - try to journal more regularly!",
-        insights: ["Consider setting a daily reminder to journal", "Even short entries can provide valuable insights"],
-        trend: "neutral"
-      };
-    }
-
-    let summary = `This week you made ${weekStats.total} entries. `;
-    let trend = "neutral";
-    let insights = [];
-
-    if (weekStats.green > weekStats.red) {
-      summary += `Great job! You had ${weekStats.green} positive interactions and only ${weekStats.red} concerning ones.`;
-      trend = "positive";
-      insights.push("Your relationship is showing healthy patterns this week!");
-      insights.push("Keep up the positive communication and support.");
-    } else if (weekStats.red > weekStats.green) {
-      summary += `This week was challenging with ${weekStats.red} red flags and ${weekStats.green} green flags.`;
-      trend = "concerning";
-      insights.push("Consider what factors might be contributing to conflicts.");
-      insights.push("It might be helpful to talk to a counselor or trusted friend.");
-    } else {
-      summary += `You had a mixed week with ${weekStats.green} positive and ${weekStats.red} concerning interactions.`;
-      insights.push("Focus on building more positive moments together.");
-      insights.push("Communication and setting boundaries can help.");
-    }
-
-    return { summary, insights, trend, stats: weekStats };
-  };
-
-  const toggleGoal = (goalId) => {
-    setGoals(goals.map(goal => 
+const toggleGoal = (goalId) => {
+  setGoals(prevGoals => {
+    const updatedGoals = prevGoals.map(goal => 
       goal.id === goalId ? { ...goal, completed: !goal.completed } : goal
-    ));
-  };
+    );
+    localStorage.setItem('relationshipGoals', JSON.stringify(updatedGoals));
+    return updatedGoals;
+  });
+};
 
   const addGoal = (text) => {
     const newGoal = {
@@ -1138,18 +1099,6 @@ const resetWeeklyGoals = () => {
   const stats = getStats();
   const streaks = getStreaks();
 const timePatterns = getTimePatterns();
-const getRecentEntriesSummary = () => {
-  if (entries.length === 0) return 'No previous entries';
-  
-  const recent = entries.slice(0, 5);
-  const summary = recent.map(entry => {
-    const flag = entry.analysis.flag;
-    const date = entry.date;
-    return `${date}: ${flag} flag`;
-  }).join('\n');
-  
-  return `Recent patterns:\n${summary}`;
-};
 
 return (
   <div className={`app ${isDarkMode ? 'dark-mode' : ''}`} style={{
@@ -1171,6 +1120,9 @@ return (
         <></>
 
 {/* Debug and API Test */}
+{/* Debug and API Test - Only show in development */}
+{showDebugStuff && (
+<>
 <div className="flex items-center space-x-2" style={{marginBottom: '10px'}}>
   <button
     onClick={() => setDebugMode(!debugMode)}
@@ -1200,7 +1152,7 @@ return (
 </button>
 </div>
 {/* Enhanced Gemini → Groq AI Status Section */}
-<div className={showDebugStuff ? 'debug-visible' : 'debug-hidden'} style={{marginBottom: '15px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>  
+<div style={{marginBottom: '15px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)'}}>  
   {/* Analysis Method Selector */}
   <div className="flex items-center space-x-2" style={{marginBottom: '10px'}}>
     <span style={{fontSize: '14px', fontWeight: '500'}}>Analysis Mode:</span>
@@ -1458,6 +1410,8 @@ return (
     return null;
   })()}
 </div>
+</>
+)}
 
 {/* Theme Controls */}
         <div className="theme-controls">
