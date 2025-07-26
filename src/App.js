@@ -459,6 +459,7 @@ function ModernRelationshipApp() {
   const [currentEntry, setCurrentEntry] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState('journal');
+  console.log('Current activeTab:', activeTab); // Debug log
   const [theme, setTheme] = useState('pink');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -733,7 +734,7 @@ function ModernRelationshipApp() {
     });
   };
 
-  // Weekly tips function
+  // Time patterns analysis
   const getWeeklyTips = () => {
     const currentWeek = getCurrentWeek();
     
@@ -832,7 +833,46 @@ function ModernRelationshipApp() {
     return weeklyTipSets[tipSetIndex];
   };
 
-  // Time patterns analysis
+  // Calendar helper functions
+  const getCalendarDays = () => {
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    const days = [];
+    const current = new Date(startDate);
+    
+    for (let i = 0; i < 42; i++) {
+      const dayEntries = entries.filter(entry => {
+        const entryDate = new Date(entry.timestamp);
+        return entryDate.toDateString() === current.toDateString();
+      });
+      
+      days.push({
+        date: new Date(current),
+        entries: dayEntries,
+        isCurrentMonth: current.getMonth() === month,
+        isToday: current.toDateString() === new Date().toDateString()
+      });
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return days;
+  };
+
+  const getDayColor = (dayEntries) => {
+    if (dayEntries.length === 0) return 'transparent';
+    const red = dayEntries.filter(e => e.analysis.flag === 'red').length;
+    const green = dayEntries.filter(e => e.analysis.flag === 'green').length;
+    
+    if (red > green) return '#ef4444';
+    if (green > red) return '#10b981';
+    return '#6b7280';
+  };
   const getTimePatterns = () => {
     if (entries.length === 0) return null;
     
@@ -965,7 +1005,21 @@ function ModernRelationshipApp() {
       isDarkMode 
         ? 'bg-gray-900 text-white' 
         : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'
-    }`}>
+    }`} style={{
+      '--theme-primary': currentTheme.primary,
+      '--bg-primary': isDarkMode ? '#1f2937' : '#ffffff',
+      '--bg-secondary': isDarkMode ? '#374151' : '#f9fafb',
+      '--text-primary': isDarkMode ? '#ffffff' : '#111827',
+      '--text-secondary': isDarkMode ? '#d1d5db' : '#6b7280',
+      '--border-color': isDarkMode ? '#4b5563' : '#e5e7eb',
+      '--shadow': isDarkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)',
+      '--green-value': '#10b981',
+      '--red-value': '#ef4444',
+      '--neutral-text': '#6b7280',
+      '--green-bg': '#dcfce7',
+      '--red-bg': '#fef2f2',
+      '--neutral-bg': '#f3f4f6'
+    }}>
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className={`absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-r ${currentTheme.primary} rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse`}></div>
@@ -1108,6 +1162,7 @@ function ModernRelationshipApp() {
             <div className="flex space-x-1 overflow-x-auto py-2">
               {[
                 { id: 'journal', icon: MessageCircle, label: 'Journal' },
+                { id: 'calendar', icon: Calendar, label: 'Calendar' },
                 { id: 'insights', icon: TrendingUp, label: 'Insights' },
                 { id: 'goals', icon: Target, label: 'Goals' },
                 { id: 'resources', icon: Shield, label: 'Resources' }
@@ -1237,6 +1292,123 @@ function ModernRelationshipApp() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Calendar Tab */}
+          {activeTab === 'calendar' && (
+            <div className="space-y-8">
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-bold">📅 Calendar View</h2>
+                <div className="flex items-center space-x-4">
+                  <button 
+                    onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1))}
+                    className={`p-2 rounded-xl ${
+                      isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+                    } transition-colors`}
+                  >
+                    ←
+                  </button>
+                  <span className="text-lg font-semibold min-w-48 text-center">
+                    {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button 
+                    onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1))}
+                    className={`p-2 rounded-xl ${
+                      isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+                    } transition-colors`}
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+
+              <div className={`${
+                isDarkMode ? 'bg-gray-800/50' : 'bg-white/80'
+              } backdrop-blur-sm rounded-3xl p-6 shadow-lg border border-gray-200/50`}>
+                
+                {/* Day Headers */}
+                <div className="grid grid-cols-7 gap-1 mb-4">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="p-3 text-center font-semibold text-gray-500 text-sm">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1">
+                  {getCalendarDays().map((day, index) => (
+                    <div 
+                      key={index}
+                      className={`min-h-20 p-2 rounded-lg border transition-all duration-200 ${
+                        day.isCurrentMonth 
+                          ? isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'
+                          : 'opacity-30'
+                      } ${
+                        day.isToday 
+                          ? `ring-2 ring-${currentTheme.accent} bg-gradient-to-br ${currentTheme.primary} bg-opacity-10`
+                          : ''
+                      }`}
+                      style={{
+                        borderLeftColor: day.entries.length > 0 ? getDayColor(day.entries) : 'transparent',
+                        borderLeftWidth: day.entries.length > 0 ? '4px' : '1px'
+                      }}
+                    >
+                      <div className={`font-semibold text-sm mb-1 ${
+                        day.isToday ? 'text-white' : ''
+                      }`}>
+                        {day.date.getDate()}
+                      </div>
+                      {day.entries.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {day.entries.slice(0, 3).map(entry => (
+                            <div 
+                              key={entry.id}
+                              className={`w-3 h-3 rounded-full text-xs flex items-center justify-center ${
+                                entry.analysis.flag === 'red' ? 'bg-red-500' :
+                                entry.analysis.flag === 'green' ? 'bg-green-500' : 'bg-gray-400'
+                              }`}
+                              title={`${entry.analysis.title}: ${entry.text.substring(0, 50)}...`}
+                            >
+                            </div>
+                          ))}
+                          {day.entries.length > 3 && (
+                            <div className="w-3 h-3 rounded-full bg-gray-300 text-xs flex items-center justify-center">
+                              +
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div className={`${
+                isDarkMode ? 'bg-gray-800/50' : 'bg-white/80'
+              } backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-gray-200/50`}>
+                <h4 className="font-semibold mb-3">Legend:</h4>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                    <span>Green Flags</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+                    <span>Red Flags</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
+                    <span>Neutral</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-4 h-4 rounded border-2 border-${currentTheme.accent}`}></div>
+                    <span>Today</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
