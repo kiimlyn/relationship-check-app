@@ -1028,7 +1028,6 @@ function ModernRelationshipApp() {
 
       <div className="relative z-10">
         {/* Header */}
-// Replace your header section with this mobile-responsive version:
 
 <header className={`backdrop-blur-md ${
   isDarkMode ? 'bg-gray-900/80 border-gray-700' : 'bg-white/80 border-gray-200'
