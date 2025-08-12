@@ -1048,7 +1048,7 @@ function ModernRelationshipApp() {
       {/* Right side - Controls */}
       <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
         {/* Theme Selector - hide on small screens */}
-        <div className="hidden sm:flex space-x-2">
+        <div className="flex space-x-1 md:space-x-2">
           {Object.entries(themes).map(([key, themeData]) => (
             <button
               key={key}
