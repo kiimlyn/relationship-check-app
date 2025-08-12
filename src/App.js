@@ -1028,50 +1028,61 @@ function ModernRelationshipApp() {
 
       <div className="relative z-10">
         {/* Header */}
-        <header className={`backdrop-blur-md ${
-          isDarkMode ? 'bg-gray-900/80 border-gray-700' : 'bg-white/80 border-gray-200'
-        } border-b sticky top-0 z-50`}>
-          <div className="max-w-6xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className={`p-3 rounded-2xl bg-gradient-to-r ${currentTheme.primary} shadow-lg`}>
-                  <Heart className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold">RelationshipCheck</h1>
-                  <p className="text-sm text-gray-500">AI-powered relationship wellness journal</p>
-                </div>
-              </div>
+// Replace your header section with this mobile-responsive version:
 
-              <div className="flex items-center space-x-4">
-                {/* Theme Selector */}
-                <div className="flex space-x-2">
-                  {Object.entries(themes).map(([key, themeData]) => (
-                    <button
-                      key={key}
-                      onClick={() => setTheme(key)}
-                      className={`w-8 h-8 rounded-full bg-gradient-to-r ${themeData.primary} ${
-                        theme === key ? 'ring-2 ring-offset-2 ring-gray-400' : ''
-                      } transition-all duration-200 hover:scale-110`}
-                    />
-                  ))}
-                </div>
+<header className={`backdrop-blur-md ${
+  isDarkMode ? 'bg-gray-900/80 border-gray-700' : 'bg-white/80 border-gray-200'
+} border-b sticky top-0 z-50`}>
+  <div className="max-w-6xl mx-auto px-4 py-4">
+    <div className="flex items-center justify-between">
+      {/* Left side - App info */}
+      <div className="flex items-center space-x-3">
+        <div className={`p-3 rounded-2xl bg-gradient-to-r ${currentTheme.primary} shadow-lg`}>
+          <Heart className="w-6 h-6 md:w-8 md:h-8 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg md:text-2xl font-bold truncate">RelationshipCheck</h1>
+          <p className="text-xs md:text-sm text-gray-500 hidden sm:block">AI-powered relationship wellness journal</p>
+        </div>
+      </div>
 
-                {/* Dark Mode Toggle */}
-                <button
-                  onClick={() => setIsDarkMode(!isDarkMode)}
-                  className={`p-2 rounded-xl transition-all duration-300 ${
-                    isDarkMode 
-                      ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
+      {/* Right side - Controls */}
+      <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
+        {/* Theme Selector - hide on small screens */}
+        <div className="hidden sm:flex space-x-2">
+          {Object.entries(themes).map(([key, themeData]) => (
+            <button
+              key={key}
+              onClick={() => setTheme(key)}
+              className={`w-6 h-6 md:w-8 md:h-8 rounded-full bg-gradient-to-r ${themeData.primary} ${
+                theme === key ? 'ring-2 ring-offset-2 ring-gray-400' : ''
+              } transition-all duration-200 hover:scale-110`}
+            />
+          ))}
+        </div>
+
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className={`p-2 md:p-2 rounded-xl transition-all duration-300 ${
+            isDarkMode 
+              ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          {isDarkMode ? <Sun className="w-4 h-4 md:w-5 md:h-5" /> : <Moon className="w-4 h-4 md:w-5 md:h-5" />}
+        </button>
+
+        {/* Mobile theme selector - show as dropdown or modal on small screens */}
+        <div className="sm:hidden">
+          <button className="p-2 rounded-xl bg-gray-100 text-gray-600">
+            <div className={`w-4 h-4 rounded-full bg-gradient-to-r ${currentTheme.primary}`}></div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
 
         {/* AI Debug Panel - Only in development */}
         {showDebugStuff && (
