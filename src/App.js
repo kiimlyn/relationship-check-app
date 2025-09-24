@@ -1802,4 +1802,4 @@ function ModernRelationshipApp() {
   );
 }
 
-export default ModernRelationshipApp;
+export default App;
